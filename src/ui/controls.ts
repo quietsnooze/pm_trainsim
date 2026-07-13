@@ -20,46 +20,46 @@ const CSS = `
 .tc-throttle {
   -webkit-appearance: none;
   appearance: none;
-  width: min(46vw, 220px);
-  height: 34px;
+  width: min(52vw, 260px);
+  height: 56px;
   background: transparent;
   touch-action: none;
 }
 .tc-throttle::-webkit-slider-runnable-track {
-  height: 10px;
-  border-radius: 5px;
+  height: 14px;
+  border-radius: 7px;
   background: linear-gradient(90deg, #3a4150, #b8873b);
 }
 .tc-throttle::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 30px;
-  height: 30px;
-  margin-top: -10px;
+  width: 48px;
+  height: 48px;
+  margin-top: -17px;
   border-radius: 50%;
   background: #e8e6e0;
-  border: 3px solid #b8873b;
+  border: 4px solid #b8873b;
 }
 .tc-throttle::-moz-range-track {
-  height: 10px;
-  border-radius: 5px;
+  height: 14px;
+  border-radius: 7px;
   background: linear-gradient(90deg, #3a4150, #b8873b);
 }
 .tc-throttle::-moz-range-thumb {
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: #e8e6e0;
-  border: 3px solid #b8873b;
+  border: 4px solid #b8873b;
 }
 .tc-dir {
-  font: 600 13px/1 inherit;
-  letter-spacing: 0.06em;
-  padding: 10px 14px;
-  border-radius: 12px;
+  font: 600 26px/1 inherit;
+  padding: 0;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
   border: 1px solid #4a5162;
   background: #262b35;
   color: #e8e6e0;
-  min-width: 58px;
 }
 .tc-dir[data-blocked='1'] {
   border-color: #a04a44;
@@ -85,9 +85,11 @@ export function createControls(train: Train, root: HTMLElement): { update(): voi
   const panel = document.createElement('div')
   panel.className = 'tc-panel'
 
+  // Direction shown as an arrow, not words — the driver is four.
   const dirButton = document.createElement('button')
   dirButton.className = 'tc-dir'
-  dirButton.textContent = 'FWD'
+  dirButton.textContent = '▶'
+  dirButton.setAttribute('aria-label', 'Direction: forward')
 
   const throttle = document.createElement('input')
   throttle.className = 'tc-throttle'
@@ -111,7 +113,8 @@ export function createControls(train: Train, root: HTMLElement): { update(): voi
   dirButton.addEventListener('click', () => {
     const next = train.direction === 1 ? -1 : 1
     if (train.setDirection(next)) {
-      dirButton.textContent = next === 1 ? 'FWD' : 'REV'
+      dirButton.textContent = next === 1 ? '▶' : '◀'
+      dirButton.setAttribute('aria-label', next === 1 ? 'Direction: forward' : 'Direction: reverse')
       dirButton.dataset.blocked = ''
     } else {
       // Can't reverse a moving train — nudge the driver to stop first.

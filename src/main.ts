@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { buildDiorama } from './scene/diorama'
 import { buildTrackMesh } from './scene/trackMesh'
 import { TrainMesh } from './scene/trainMesh'
-import { makeOvalTrack } from './sim/track'
+import { makeOvalGraph } from './sim/layouts'
 import { Train } from './sim/train'
 import { createControls } from './ui/controls'
 
@@ -19,12 +19,10 @@ app.appendChild(renderer.domElement)
 const scene = new THREE.Scene()
 buildDiorama(scene)
 
-const track = makeOvalTrack()
+const track = makeOvalGraph()
 scene.add(buildTrackMesh(track))
 
 const train = new Train(track)
-// Start on the straight nearest the default camera so the rake greets you.
-train.s = track.totalLength * 0.19
 const trainMesh = new TrainMesh(train)
 scene.add(trainMesh.group)
 

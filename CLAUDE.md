@@ -69,7 +69,12 @@ Three layers, kept separate so each can evolve independently:
 ## Roadmap
 
 - [x] v0 — hello diorama: baseboard, oval track, drivable placeholder Mallard,
-      provisional slider controls
-- [ ] v1 — skeuomorphic controller (rotary throttle knob, direction switch,
-      point levers) + a siding/passing loop with working points
-- [ ] later — multiple trains and layouts, sound, PWA/offline, nicer scenery
+      slider controls (play-tested and **locked** — the slider + direction
+      toggle stay; see PRD issue #3)
+- [ ] v1 — siding/passing loop with working tap-the-track points, proper
+      Mallard 4468, sound + big mute
+- [ ] later — train picker (Scotsman 4472, Azuma), smoke, more layouts,
+      scenery, day/night, eye-level camera, PWA/offline
+
+The full plan lives in PRD issue #3 and its 16 slice issues (#4–#19). The
+primary user is a four-year-old: calm, predictable, icon-only, no fail states.

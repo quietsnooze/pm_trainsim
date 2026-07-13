@@ -122,11 +122,9 @@ export class TrainMesh {
 
   /** Re-pose every vehicle from the sim's current position. */
   update(): void {
-    const path = this.train.track
     for (const v of this.vehicles) {
-      const sCenter = this.train.s - v.centerOffset
-      const a = path.sampleAt(sCenter + v.axleSpan / 2).position
-      const b = path.sampleAt(sCenter - v.axleSpan / 2).position
+      const a = this.train.sampleBehindHead(v.centerOffset - v.axleSpan / 2).position
+      const b = this.train.sampleBehindHead(v.centerOffset + v.axleSpan / 2).position
       v.group.position.set((a.x + b.x) / 2, RAIL_TOP_Y, (a.z + b.z) / 2)
       v.group.rotation.y = Math.atan2(-(a.z - b.z), a.x - b.x)
     }

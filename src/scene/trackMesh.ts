@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { GAUGE, type TrackPath } from '../sim/track'
+import type { TrackGraph } from '../sim/graph'
+import { GAUGE, type TrackSegment } from '../sim/track'
 
 const GRASS_TOP_Y = 0.006
 const BALLAST_Y = GRASS_TOP_Y + 0.0008
@@ -17,10 +18,10 @@ function normalOf(t: { x: number; z: number }): { x: number; z: number } {
   return { x: -t.z, z: t.x }
 }
 
-/** Adapts the sim's TrackPath (offset sideways by `offset`) to a THREE.Curve. */
-class OffsetPathCurve extends THREE.Curve<THREE.Vector3> {
+/** Adapts one segment's geometry (offset sideways) to a THREE.Curve. */
+class OffsetSegmentCurve extends THREE.Curve<THREE.Vector3> {
   constructor(
-    private readonly path: TrackPath,
+    private readonly seg: TrackSegment,
     private readonly offset: number,
     private readonly y: number,
   ) {
@@ -28,7 +29,7 @@ class OffsetPathCurve extends THREE.Curve<THREE.Vector3> {
   }
 
   override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
-    const { position, tangent } = this.path.sampleAt(t * this.path.totalLength)
+    const { position, tangent } = this.seg.sampleAt(t * this.seg.length)
     const n = normalOf(tangent)
     return target.set(
       position.x + n.x * this.offset,
@@ -38,14 +39,14 @@ class OffsetPathCurve extends THREE.Curve<THREE.Vector3> {
   }
 }
 
-/** Flat ballast ribbon following the path, as a triangle strip. */
-function buildBallast(path: TrackPath): THREE.Mesh {
-  const steps = 256
+/** Flat ballast ribbon following one segment, as a triangle strip. */
+function buildBallast(seg: TrackSegment): THREE.Mesh {
+  const steps = Math.max(2, Math.ceil(seg.length / 0.01))
   const half = BALLAST_WIDTH / 2
   const positions: number[] = []
   const indices: number[] = []
   for (let i = 0; i <= steps; i++) {
-    const { position, tangent } = path.sampleAt((i / steps) * path.totalLength)
+    const { position, tangent } = seg.sampleAt((i / steps) * seg.length)
     const n = normalOf(tangent)
     positions.push(position.x + n.x * half, BALLAST_Y, position.z + n.z * half)
     positions.push(position.x - n.x * half, BALLAST_Y, position.z - n.z * half)
@@ -67,8 +68,8 @@ function buildBallast(path: TrackPath): THREE.Mesh {
   return mesh
 }
 
-function buildSleepers(path: TrackPath): THREE.InstancedMesh {
-  const count = Math.floor(path.totalLength / SLEEPER_SPACING)
+function buildSleepers(seg: TrackSegment): THREE.InstancedMesh {
+  const count = Math.max(1, Math.floor(seg.length / SLEEPER_SPACING))
   const geo = new THREE.BoxGeometry(
     SLEEPER_SIZE.alongTrack,
     SLEEPER_SIZE.thickness,
@@ -82,7 +83,7 @@ function buildSleepers(path: TrackPath): THREE.InstancedMesh {
   const scale = new THREE.Vector3(1, 1, 1)
   const up = new THREE.Vector3(0, 1, 0)
   for (let i = 0; i < count; i++) {
-    const { position, tangent } = path.sampleAt(i * SLEEPER_SPACING)
+    const { position, tangent } = seg.sampleAt((i + 0.5) * SLEEPER_SPACING)
     pos.set(position.x, BALLAST_Y + SLEEPER_SIZE.thickness / 2, position.z)
     quat.setFromAxisAngle(up, Math.atan2(-tangent.z, tangent.x))
     m.compose(pos, quat, scale)
@@ -93,25 +94,27 @@ function buildSleepers(path: TrackPath): THREE.InstancedMesh {
   return sleepers
 }
 
-export function buildTrackMesh(path: TrackPath): THREE.Group {
+/** Build the whole permanent way for a track graph. */
+export function buildTrackMesh(graph: TrackGraph): THREE.Group {
   const group = new THREE.Group()
-  group.add(buildBallast(path))
-  group.add(buildSleepers(path))
-
   const railMat = new THREE.MeshStandardMaterial({
     color: '#b8b4ac',
     roughness: 0.35,
     metalness: 0.8,
   })
-  const tubeSegments = 220
-  for (const side of [-1, 1]) {
-    const curve = new OffsetPathCurve(path, (side * GAUGE) / 2, RAIL_CENTER_Y)
-    const rail = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, tubeSegments, RAIL_RADIUS, 6, true),
-      railMat,
-    )
-    rail.castShadow = true
-    group.add(rail)
-  }
+  graph.forEachSegment((_id, seg) => {
+    group.add(buildBallast(seg))
+    group.add(buildSleepers(seg))
+    const tubeSegments = Math.max(8, Math.ceil(seg.length / 0.005))
+    for (const side of [-1, 1]) {
+      const curve = new OffsetSegmentCurve(seg, (side * GAUGE) / 2, RAIL_CENTER_Y)
+      const rail = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, tubeSegments, RAIL_RADIUS, 6, false),
+        railMat,
+      )
+      rail.castShadow = true
+      group.add(rail)
+    }
+  })
   return group
 }

@@ -1,25 +1,81 @@
-import type { TrackPath } from './track'
+import type { Cursor, CursorState, TrackGraph } from './graph'
+import type { PathSample } from './track'
 
 /** Top speed at full throttle, in tabletop metres per second. */
 const MAX_SPEED = 0.25
 /** How quickly actual speed chases target speed (per second). */
 const ACCEL_RATE = 2.5
+/** Breadcrumb spacing along the travelled path. */
+const RIBBON_STEP = 0.01
+/** Extra ribbon kept beyond each end of the train. */
+const MARGIN = 0.06
 
 export type Direction = 1 | -1
 
+/** One breadcrumb: pose plus the graph cursor state that produced it. */
+interface Crumb {
+  x: number
+  z: number
+  tx: number
+  tz: number
+  /** Cursor state at this spot, facing ribbon-forward (towards the head). */
+  state: CursorState
+}
+
+function flip(state: CursorState): CursorState {
+  return { ...state, dir: (state.dir * -1) as Direction }
+}
+
 /**
- * Driving state for one train: where it is along the track (`s`), how fast
- * it's actually moving, and what the controller is asking for. Purely
- * kinematic — the scene layer samples the path to pose the meshes.
+ * A train on the track graph.
+ *
+ * The core trick is the travelled-path ribbon: a breadcrumb trail of where
+ * the head of the train has actually been. Vehicles sample the ribbon at
+ * fixed distances behind the head, so the whole rake always follows the
+ * route the locomotive took — flipping a point behind a moving train can
+ * never split it. Only the ribbon's two ends ever consult the graph (and
+ * therefore the current point states).
  */
 export class Train {
-  s = 0
   speed = 0
   direction: Direction = 1
   /** 0..1, set by the controller. */
   throttle = 0
 
-  constructor(readonly track: TrackPath) {}
+  private crumbs: Crumb[] = []
+  /** Ribbon coordinate of crumbs[0]; coordinates increase towards the head. */
+  private dFirst = 0
+  /** Ribbon coordinate of the head of the train. */
+  private headD = 0
+  private headCursor: Cursor
+  private tailCursor: Cursor
+
+  constructor(
+    readonly graph: TrackGraph,
+    /** Path length the consist occupies behind the head. */
+    readonly length = 0.45,
+  ) {
+    // Head starts at the spawn point; walk backwards to lay ribbon under
+    // where the coaches will sit.
+    this.headCursor = graph.createCursor(graph.spawn)
+    const back = graph.createCursor(flip(graph.spawn))
+    const tailward: Crumb[] = []
+    const steps = Math.ceil((this.length + MARGIN) / RIBBON_STEP)
+    for (let i = 0; i < steps; i++) {
+      if (back.advance(RIBBON_STEP) < RIBBON_STEP - 1e-9) break
+      tailward.push(this.crumbFrom(back, true))
+    }
+    this.crumbs = tailward.reverse()
+    this.crumbs.push(this.crumbFrom(this.headCursor, false))
+    this.headD = (this.crumbs.length - 1) * RIBBON_STEP
+    this.dFirst = 0
+    this.tailCursor = graph.createCursor(flip(this.crumbs[0].state))
+  }
+
+  /** Pose at `d` behind the head (0 = head), tangent facing ribbon-forward. */
+  sampleBehindHead(d: number): PathSample {
+    return this.sampleAt(this.headD - d)
+  }
 
   /** Reversing is only allowed once the train has (nearly) stopped. */
   setDirection(dir: Direction): boolean {
@@ -30,10 +86,88 @@ export class Train {
 
   update(dt: number): void {
     const target = this.throttle * MAX_SPEED
-    // Exponential approach: smooth spin-up and coast-down.
     const blend = 1 - Math.exp(-ACCEL_RATE * dt)
     this.speed += (target - this.speed) * blend
     if (this.speed < 0.0005 && this.throttle === 0) this.speed = 0
-    this.s = this.track.wrap(this.s + this.speed * this.direction * dt)
+    const delta = this.speed * dt
+    if (delta <= 0) return
+    if (this.direction === 1) this.moveForward(delta)
+    else this.moveBackward(delta)
+  }
+
+  // --- ribbon internals ---
+
+  private crumbFrom(cursor: Cursor, movingTailward: boolean): Crumb {
+    const { position, tangent } = cursor.sample()
+    const sign = movingTailward ? -1 : 1
+    const state = movingTailward ? flip(cursor.snapshot()) : cursor.snapshot()
+    return { x: position.x, z: position.z, tx: sign * tangent.x, tz: sign * tangent.z, state }
+  }
+
+  private get dLast(): number {
+    return this.dFirst + (this.crumbs.length - 1) * RIBBON_STEP
+  }
+
+  private sampleAt(d: number): PathSample {
+    const clamped = Math.min(Math.max(d, this.dFirst), this.dLast)
+    const f = (clamped - this.dFirst) / RIBBON_STEP
+    const i = Math.min(Math.floor(f), this.crumbs.length - 2)
+    const a = this.crumbs[Math.max(i, 0)]
+    const b = this.crumbs[Math.min(Math.max(i, 0) + 1, this.crumbs.length - 1)]
+    const t = Math.min(Math.max(f - i, 0), 1)
+    const tx = a.tx + (b.tx - a.tx) * t
+    const tz = a.tz + (b.tz - a.tz) * t
+    const norm = Math.hypot(tx, tz) || 1
+    return {
+      position: { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t },
+      tangent: { x: tx / norm, z: tz / norm },
+    }
+  }
+
+  /** Grow the ribbon headwards to cover `target`; false if track ran out. */
+  private extendHeadTo(target: number): boolean {
+    while (this.dLast < target) {
+      if (this.headCursor.advance(RIBBON_STEP) < RIBBON_STEP - 1e-9) return false
+      this.crumbs.push(this.crumbFrom(this.headCursor, false))
+    }
+    return true
+  }
+
+  /** Grow the ribbon tailwards to cover `target`; false if track ran out. */
+  private extendTailTo(target: number): boolean {
+    while (this.dFirst > target) {
+      if (this.tailCursor.advance(RIBBON_STEP) < RIBBON_STEP - 1e-9) return false
+      this.crumbs.unshift(this.crumbFrom(this.tailCursor, true))
+      this.dFirst -= RIBBON_STEP
+    }
+    return true
+  }
+
+  private moveForward(delta: number): void {
+    const blocked = !this.extendHeadTo(this.headD + delta)
+    this.headD = Math.min(this.headD + delta, this.dLast)
+    if (blocked) this.speed = 0 // buffer stop: ease to rest, no drama
+    // Trim ribbon we no longer need behind the train.
+    let drop = 0
+    while (this.dFirst + (drop + 1) * RIBBON_STEP < this.headD - this.length - MARGIN) drop++
+    if (drop > 0) {
+      this.crumbs.splice(0, drop)
+      this.dFirst += drop * RIBBON_STEP
+      this.tailCursor = this.graph.createCursor(flip(this.crumbs[0].state))
+    }
+  }
+
+  private moveBackward(delta: number): void {
+    const rearTarget = this.headD - this.length - delta
+    const blocked = !this.extendTailTo(rearTarget)
+    this.headD = Math.max(this.headD - delta, this.dFirst + this.length)
+    if (blocked) this.speed = 0
+    // Trim ribbon we no longer need ahead of the train.
+    let drop = 0
+    while (this.dLast - (drop + 1) * RIBBON_STEP > this.headD + MARGIN) drop++
+    if (drop > 0) {
+      this.crumbs.splice(this.crumbs.length - drop, drop)
+      this.headCursor = this.graph.createCursor(this.crumbs[this.crumbs.length - 1].state)
+    }
   }
 }
