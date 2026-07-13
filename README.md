@@ -4,6 +4,9 @@ A 3D miniature model train set in the browser — a little diorama with an oval
 of track and an LNER A4 (Mallard) you can drive, built for Safari on iPhone
 and iPad. See [CLAUDE.md](CLAUDE.md) for the project vision and architecture.
 
+**Play it:** <https://quietsnooze.github.io/pm_trainsim/> (deployed from `main`
+by GitHub Actions on every push).
+
 ## Run it
 
 ```
