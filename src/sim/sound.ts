@@ -20,6 +20,11 @@ const MAX_SPEED = 0.25
 
 export class SoundDirector {
   muted = false
+  /**
+   * Fired on every exhaust beat regardless of mute — visual listeners
+   * (smoke puffs) hang off this; mute only gates the audio backend.
+   */
+  onBeat?: (speedNorm: number) => void
   private phase = 0
 
   constructor(
@@ -41,6 +46,7 @@ export class SoundDirector {
     this.phase += rate * dt
     while (this.phase >= 1) {
       this.phase -= 1
+      this.onBeat?.(speedNorm)
       if (!this.muted) this.backend.chuff(speedNorm)
     }
   }

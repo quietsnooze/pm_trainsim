@@ -324,6 +324,10 @@ function buildCoach(): VehicleBuild {
 /** Path length the full rake occupies — the sim ribbon must cover this. */
 export const CONSIST_LENGTH = 0.112 + 0.058 + 0.098 * 4
 
+/** Where smoke comes from: distance behind the train head, and height. */
+export const CHIMNEY_BEHIND_HEAD = 0.028
+export const CHIMNEY_HEIGHT = 0.045
+
 /**
  * The whole rake — loco, tender, coaches — posed along the track by sampling
  * the travelled path either side of each vehicle's centre. Wheels spin with
