@@ -81,59 +81,5 @@ export class ArcSegment implements TrackSegment {
   }
 }
 
-/**
- * A closed loop of segments. Arc length `s` wraps modulo the total length,
- * so callers can advance a train's `s` forever in either direction.
- */
-export class TrackPath {
-  readonly totalLength: number
-  private readonly starts: number[]
-
-  constructor(private readonly segments: TrackSegment[]) {
-    this.starts = []
-    let acc = 0
-    for (const seg of segments) {
-      this.starts.push(acc)
-      acc += seg.length
-    }
-    this.totalLength = acc
-  }
-
-  wrap(s: number): number {
-    const t = s % this.totalLength
-    return t < 0 ? t + this.totalLength : t
-  }
-
-  sampleAt(s: number): PathSample {
-    const sw = this.wrap(s)
-    // Linear scan is fine: layouts have a handful of segments.
-    for (let i = this.segments.length - 1; i >= 0; i--) {
-      if (sw >= this.starts[i]) {
-        return this.segments[i].sampleAt(sw - this.starts[i])
-      }
-    }
-    return this.segments[0].sampleAt(0)
-  }
-}
-
 /** Track gauge (rail-to-rail spacing) in tabletop metres. */
 export const GAUGE = 0.03
-
-/**
- * The starter layout: a small oval, two straights joined by two semicircles,
- * centred on the origin.
- */
-export function makeOvalTrack(straightLength = 0.5, radius = 0.22): TrackPath {
-  const l = straightLength / 2
-  const r = radius
-  return new TrackPath([
-    // Far straight (z = +r), running left to right.
-    new StraightSegment({ x: -l, z: r }, { x: l, z: r }),
-    // Right-hand semicircle, from angle +90deg down through 0 to -90deg.
-    new ArcSegment({ x: l, z: 0 }, r, Math.PI / 2, -Math.PI),
-    // Near straight (z = -r), running right to left.
-    new StraightSegment({ x: l, z: -r }, { x: -l, z: -r }),
-    // Left-hand semicircle, closing the loop.
-    new ArcSegment({ x: -l, z: 0 }, r, -Math.PI / 2, -Math.PI),
-  ])
-}
