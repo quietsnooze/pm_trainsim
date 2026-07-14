@@ -33,18 +33,22 @@ export class WebAudioBackend implements SoundBackend {
     const t = this.ctx.currentTime
     const src = this.ctx.createBufferSource()
     src.buffer = this.noiseBuffer
-    src.playbackRate.value = 0.8 + intensity * 0.5
+    // Slowed-down noise reads as steam, not a snare.
+    src.playbackRate.value = 0.45 + intensity * 0.25
     const filter = this.ctx.createBiquadFilter()
     filter.type = 'bandpass'
-    filter.frequency.value = 350 + intensity * 350
-    filter.Q.value = 0.8
+    filter.frequency.value = 140 + intensity * 120 // deep
+    filter.Q.value = 0.5 // loose
     const gain = this.ctx.createGain()
-    gain.gain.setValueAtTime(0.12 + intensity * 0.4, t)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18)
+    const peak = 0.16 + intensity * 0.42
+    // Soft swell instead of an instant hit, then a long breathy tail.
+    gain.gain.setValueAtTime(0.0001, t)
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.045)
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.34)
     src.connect(filter)
     filter.connect(gain)
     gain.connect(this.master)
-    src.start(t, Math.random() * 0.5, 0.25)
+    src.start(t, Math.random() * 0.5, 0.4)
   }
 
   whistle(): void {

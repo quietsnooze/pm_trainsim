@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { buildDiorama } from './scene/diorama'
+import { FollowCam } from './scene/followCam'
 import { PointsMesh } from './scene/pointsMesh'
 import { buildTrackMesh } from './scene/trackMesh'
 import { TrainMesh } from './scene/trainMesh'
@@ -8,7 +9,7 @@ import { makeOvalSidingGraph } from './sim/layouts'
 import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
 import { WebAudioBackend } from './ui/audio'
-import { createControls, createMuteButton } from './ui/controls'
+import { createCameraButton, createControls, createMuteButton } from './ui/controls'
 import { attachTapPoints } from './ui/tapPoints'
 
 const app = document.getElementById('app')!
@@ -51,7 +52,10 @@ const audioBackend = new WebAudioBackend()
 const sound = new SoundDirector(audioBackend)
 window.addEventListener('pointerdown', () => audioBackend.unlock())
 
+const followCam = new FollowCam(camera, orbit, train)
+
 const controls = createControls(train, document.body, { onWhistle: () => sound.whistle() })
+createCameraButton(document.body, () => followCam.toggle())
 createMuteButton(
   document.body,
   () => sound.muted,
@@ -93,6 +97,7 @@ renderer.setAnimationLoop(() => {
   pointsMesh.update(dt)
   sound.update(dt, train.speed)
   controls.update()
-  orbit.update()
+  if (followCam.enabled) followCam.update(dt)
+  else orbit.update()
   renderer.render(scene, camera)
 })
