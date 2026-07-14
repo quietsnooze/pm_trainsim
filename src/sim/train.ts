@@ -77,6 +77,14 @@ export class Train {
     return this.sampleAt(this.headD - d)
   }
 
+  /**
+   * Signed distance rolled since spawn (decreases when reversing) — what
+   * the scene layer spins the wheels by.
+   */
+  get travelled(): number {
+    return this.headD
+  }
+
   /** Reversing is only allowed once the train has (nearly) stopped. */
   setDirection(dir: Direction): boolean {
     if (Math.abs(this.speed) > 0.005) return false
