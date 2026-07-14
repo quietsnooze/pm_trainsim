@@ -94,6 +94,23 @@ const CSS = `
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
+.tc-cam {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  left: calc(env(safe-area-inset-left, 0px) + 14px);
+  font: 400 28px/1 inherit;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  border: 1px solid #4a5162;
+  background: rgba(24, 27, 33, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.tc-cam[data-active='1'] {
+  border-color: #b8873b;
+  background: rgba(58, 46, 20, 0.85);
+}
 .tc-speed {
   font: 600 12px/1.2 inherit;
   min-width: 30px;
@@ -177,6 +194,23 @@ export function createControls(
       speed.textContent = String(Math.round(train.speed * 500))
     },
   }
+}
+
+/**
+ * The camera-follow toggle (top-left): ride alongside the engine, or tap
+ * again for the free tabletop view.
+ */
+export function createCameraButton(root: HTMLElement, onToggle: () => boolean): void {
+  const button = document.createElement('button')
+  button.className = 'tc-cam'
+  button.textContent = '🎥'
+  button.setAttribute('aria-label', 'Follow the engine')
+  button.addEventListener('click', () => {
+    const active = onToggle()
+    button.dataset.active = active ? '1' : ''
+    button.setAttribute('aria-label', active ? 'Following the engine — tap for tabletop view' : 'Follow the engine')
+  })
+  root.appendChild(button)
 }
 
 /**
