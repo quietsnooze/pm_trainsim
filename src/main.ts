@@ -109,6 +109,26 @@ if (import.meta.env.DEV) {
   Object.assign(window, { __sim: { scene, camera, renderer, orbit, train, trainMesh } })
 }
 
+// Offline: register the service worker (production builds only — it would
+// fight the dev server's module reloading). After registering, prime the
+// cache with everything this page already loaded: those requests happened
+// before the worker took control, and the very first visit must be enough
+// to play offline afterwards.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('sw.js').then(async () => {
+      const loaded = performance
+        .getEntriesByType('resource')
+        .map((entry) => entry.name)
+        .filter((url) => url.startsWith(location.origin))
+      const cache = await caches.open('trainset-v1') // must match sw.js
+      await Promise.all(
+        [...new Set(['./', ...loaded])].map((url) => cache.add(url).catch(() => {})),
+      )
+    })
+  })
+}
+
 const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   // Clamp dt so a backgrounded tab doesn't teleport the train on return.
