@@ -28,27 +28,31 @@ export class WebAudioBackend implements SoundBackend {
     if (this.ctx.state === 'suspended') void this.ctx.resume()
   }
 
-  chuff(intensity: number): void {
+  chuff(speedNorm: number): void {
     if (!this.ctx || !this.master || !this.noiseBuffer) return
     const t = this.ctx.currentTime
     const src = this.ctx.createBufferSource()
     src.buffer = this.noiseBuffer
-    // Slowed-down noise reads as steam, not a snare.
-    src.playbackRate.value = 0.45 + intensity * 0.25
+    // Very slow noise reads as a soft breath of steam.
+    src.playbackRate.value = 0.35 + speedNorm * 0.15
     const filter = this.ctx.createBiquadFilter()
-    filter.type = 'bandpass'
-    filter.frequency.value = 140 + intensity * 120 // deep
-    filter.Q.value = 0.5 // loose
+    filter.type = 'lowpass' // dispersed: no resonant band at all
+    filter.frequency.value = 260 + speedNorm * 120
+    filter.Q.value = 0.0001
     const gain = this.ctx.createGain()
-    const peak = 0.16 + intensity * 0.42
-    // Soft swell instead of an instant hit, then a long breathy tail.
+    // Loud and laboured when pulling away, quieter once running freely.
+    const peak = 0.5 - speedNorm * 0.3
+    // Long soft swell, then a slow breathy tail; a touch tighter at speed
+    // so quick beats stay distinct rather than smearing into a roar.
+    const attack = 0.07 - speedNorm * 0.025
+    const tail = 0.5 - speedNorm * 0.2
     gain.gain.setValueAtTime(0.0001, t)
-    gain.gain.exponentialRampToValueAtTime(peak, t + 0.045)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.34)
+    gain.gain.exponentialRampToValueAtTime(peak, t + attack)
+    gain.gain.exponentialRampToValueAtTime(0.001, t + tail)
     src.connect(filter)
     filter.connect(gain)
     gain.connect(this.master)
-    src.start(t, Math.random() * 0.5, 0.4)
+    src.start(t, Math.random() * 0.4, tail + 0.05)
   }
 
   whistle(): void {
