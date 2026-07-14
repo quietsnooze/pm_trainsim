@@ -16,9 +16,21 @@ interface Axle {
   radius: number
 }
 
+/** A coupling rod that orbits with the crank pins it joins. */
+interface Rod {
+  mesh: THREE.Mesh
+  /** Crank phase offset (the two sides run 90° apart, as on a real loco). */
+  phase: number
+  /** Wheel radius the cranks belong to. */
+  wheelRadius: number
+  crankRadius: number
+  base: THREE.Vector3
+}
+
 interface VehicleBuild {
   group: THREE.Group
   axles: Axle[]
+  rods?: Rod[]
 }
 
 interface Vehicle extends VehicleBuild {
@@ -82,11 +94,16 @@ function textPlaque(
   return group
 }
 
+/** Crank pin sits at this fraction of the wheel radius. */
+const CRANK_FRACTION = 0.58
+const STEEL = '#c8c4bc'
+
 /**
  * A spoked wheel face in the x-y plane: dark tyre ring, red hub, red
- * spokes with daylight between them — so you can SEE it going round.
+ * spokes with daylight between them — so you can SEE it going round —
+ * plus a steel crank pin for the coupling rod, poking outward.
  */
-function buildSpokedWheelFace(radius: number): THREE.Group {
+function buildSpokedWheelFace(radius: number, pinOut: number): THREE.Group {
   const g = new THREE.Group()
   const tyre = new THREE.Mesh(
     new THREE.TorusGeometry(radius - 0.0012, 0.0014, 6, 20),
@@ -107,10 +124,21 @@ function buildSpokedWheelFace(radius: number): THREE.Group {
     spoke.rotation.z = (i * Math.PI) / 3
     g.add(spoke)
   }
+  const pin = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0011, 0.0011, 0.004, 8),
+    new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.4, metalness: 0.6 }),
+  )
+  pin.rotation.x = Math.PI / 2
+  pin.position.set(radius * CRANK_FRACTION, 0, pinOut)
+  g.add(pin)
   return g
 }
 
-/** A full axle: two spoked faces joined by a slim axle, spun as one. */
+/**
+ * A full axle: two spoked faces joined by a slim axle, spun as one.
+ * The left-hand face is set 90° round so the two sides' cranks are
+ * quartered, as on a real locomotive.
+ */
 function buildDriverAxle(radius: number, width: number): THREE.Group {
   const g = new THREE.Group()
   const axle = new THREE.Mesh(
@@ -119,10 +147,10 @@ function buildDriverAxle(radius: number, width: number): THREE.Group {
   )
   axle.rotation.x = Math.PI / 2
   g.add(axle)
-  const face = buildSpokedWheelFace(radius)
   for (const side of [-1, 1]) {
-    const wheel = face.clone()
+    const wheel = buildSpokedWheelFace(radius, side * 0.002)
     wheel.position.z = (side * width) / 2
+    if (side === -1) wheel.rotation.z = Math.PI / 2
     g.add(wheel)
   }
   return g
@@ -201,11 +229,33 @@ function buildLoco(): VehicleBuild {
   g.add(namePlate)
 
   // Three big spoked driving axles, fully visible and turning.
-  for (const x of [-0.024, 0, 0.024]) {
-    const axle = buildDriverAxle(0.0095, width - 0.006)
-    axle.position.set(x, 0.0095, 0)
+  const driverR = 0.0095
+  const driverXs = [-0.024, 0, 0.024]
+  for (const x of driverXs) {
+    const axle = buildDriverAxle(driverR, width - 0.006)
+    axle.position.set(x, driverR, 0)
     g.add(axle)
-    axles.push({ group: axle, radius: 0.0095 })
+    axles.push({ group: axle, radius: driverR })
+  }
+
+  // Coupling rods joining the crank pins, one each side, quartered 90°.
+  const rods: Rod[] = []
+  const rodLength = driverXs[2] - driverXs[0] + 0.012
+  const rodZ = (width - 0.006) / 2 + 0.002
+  for (const side of [-1, 1]) {
+    const rod = new THREE.Mesh(
+      new THREE.BoxGeometry(rodLength, 0.0022, 0.0014),
+      new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.35, metalness: 0.6 }),
+    )
+    rod.castShadow = true
+    g.add(rod)
+    rods.push({
+      mesh: rod,
+      phase: side === -1 ? Math.PI / 2 : 0,
+      wheelRadius: driverR,
+      crankRadius: driverR * CRANK_FRACTION,
+      base: new THREE.Vector3(0, driverR, side * rodZ),
+    })
   }
 
   // Chimney nub and front buffer beam.
@@ -220,7 +270,7 @@ function buildLoco(): VehicleBuild {
   bufferBeam.position.set(0.0505, 0.009, 0)
   g.add(bufferBeam)
 
-  return { group: g, axles }
+  return { group: g, axles, rods }
 }
 
 /** The A4's corridor tender, lettered L N E R, now on visible wheels. */
@@ -316,6 +366,15 @@ export class TrainMesh {
       v.group.rotation.y = Math.atan2(-(a.z - b.z), a.x - b.x)
       for (const axle of v.axles) {
         axle.group.rotation.z = -rolled / axle.radius
+      }
+      for (const rod of v.rods ?? []) {
+        // The rod translates in a circle with its crank pins (it never tilts).
+        const a = -rolled / rod.wheelRadius + rod.phase
+        rod.mesh.position.set(
+          rod.base.x + Math.cos(a) * rod.crankRadius,
+          rod.base.y + Math.sin(a) * rod.crankRadius,
+          rod.base.z,
+        )
       }
     }
   }
