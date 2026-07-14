@@ -52,7 +52,7 @@ const audioBackend = new WebAudioBackend()
 const sound = new SoundDirector(audioBackend)
 window.addEventListener('pointerdown', () => audioBackend.unlock())
 
-const followCam = new FollowCam(camera, orbit, train)
+const followCam = new FollowCam(camera, orbit, train, homePose)
 
 const controls = createControls(train, document.body, { onWhistle: () => sound.whistle() })
 createCameraButton(document.body, () => followCam.toggle())
@@ -63,12 +63,22 @@ createMuteButton(
 )
 attachTapPoints(renderer.domElement, camera, pointsMesh, track, () => sound.pointClunk())
 
-// Initial framing: pull further back on narrow (portrait phone) screens so
-// the whole baseboard fits. Only applied once — after that the orbit is yours.
-function frameCamera(): void {
+// The tabletop framing: pulled further back on narrow (portrait phone)
+// screens so the whole baseboard fits. Used at startup and whenever the
+// follow camera hands the view back.
+function homePose(): { position: THREE.Vector3; target: THREE.Vector3 } {
   const aspect = window.innerWidth / window.innerHeight
   const distance = Math.max(1.15, 0.88 / aspect)
-  camera.position.set(0.52, 0.47, 0.71).multiplyScalar(distance)
+  return {
+    position: new THREE.Vector3(0.52, 0.47, 0.71).multiplyScalar(distance),
+    target: new THREE.Vector3(0, 0.02, 0),
+  }
+}
+
+function frameCamera(): void {
+  const home = homePose()
+  camera.position.copy(home.position)
+  orbit.target.copy(home.target)
   orbit.update()
 }
 
@@ -97,7 +107,7 @@ renderer.setAnimationLoop(() => {
   pointsMesh.update(dt)
   sound.update(dt, train.speed)
   controls.update()
-  if (followCam.enabled) followCam.update(dt)
+  if (followCam.active) followCam.update(dt)
   else orbit.update()
   renderer.render(scene, camera)
 })
