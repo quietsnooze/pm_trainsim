@@ -94,6 +94,29 @@ function buildSleepers(seg: TrackSegment): THREE.InstancedMesh {
   return sleepers
 }
 
+/** A little end-of-line buffer stop: dark base, red beam facing the track. */
+function buildBufferStop(position: { x: number; z: number }, outward: { x: number; z: number }): THREE.Group {
+  const g = new THREE.Group()
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.012, GAUGE + 0.014),
+    new THREE.MeshStandardMaterial({ color: '#3a3430', roughness: 0.9 }),
+  )
+  base.position.y = BALLAST_Y + 0.006
+  base.castShadow = true
+  g.add(base)
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, 0.008, GAUGE + 0.006),
+    new THREE.MeshStandardMaterial({ color: '#a03028', roughness: 0.6 }),
+  )
+  beam.position.set(-0.006, RAIL_TOP_Y + 0.004, 0)
+  beam.castShadow = true
+  g.add(beam)
+  // Sit just beyond the rail end, facing back down the track.
+  g.position.set(position.x + outward.x * 0.008, 0, position.z + outward.z * 0.008)
+  g.rotation.y = Math.atan2(-outward.z, outward.x)
+  return g
+}
+
 /** Build the whole permanent way for a track graph. */
 export function buildTrackMesh(graph: TrackGraph): THREE.Group {
   const group = new THREE.Group()
@@ -115,6 +138,9 @@ export function buildTrackMesh(graph: TrackGraph): THREE.Group {
       rail.castShadow = true
       group.add(rail)
     }
+  })
+  graph.forEachOpenEnd((position, outward) => {
+    group.add(buildBufferStop(position, outward))
   })
   return group
 }
