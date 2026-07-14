@@ -3,9 +3,10 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { buildDiorama } from './scene/diorama'
 import { FollowCam } from './scene/followCam'
 import { PointsMesh } from './scene/pointsMesh'
+import { SmokeSystem } from './scene/smoke'
 import { buildStation } from './scene/station'
-import { buildTrackMesh } from './scene/trackMesh'
-import { CONSIST_LENGTH, TrainMesh } from './scene/trainMesh'
+import { buildTrackMesh, RAIL_TOP_Y } from './scene/trackMesh'
+import { CHIMNEY_BEHIND_HEAD, CHIMNEY_HEIGHT, CONSIST_LENGTH, TrainMesh } from './scene/trainMesh'
 import { makeOvalSidingGraph } from './sim/layouts'
 import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
@@ -53,6 +54,14 @@ orbit.maxPolarAngle = 1.35 // don't let the camera dip below the table
 const audioBackend = new WebAudioBackend()
 const sound = new SoundDirector(audioBackend)
 window.addEventListener('pointerdown', () => audioBackend.unlock())
+
+// A puff of steam with every exhaust beat (even when muted — smoke isn't sound).
+const smoke = new SmokeSystem()
+scene.add(smoke.group)
+sound.onBeat = (effort) => {
+  const { position } = train.sampleBehindHead(CHIMNEY_BEHIND_HEAD)
+  smoke.puff(new THREE.Vector3(position.x, RAIL_TOP_Y + CHIMNEY_HEIGHT, position.z), effort)
+}
 
 const followCam = new FollowCam(camera, orbit, train, homePose)
 
@@ -108,6 +117,7 @@ renderer.setAnimationLoop(() => {
   trainMesh.update()
   pointsMesh.update(dt)
   sound.update(dt, train.speed)
+  smoke.update(dt)
   controls.update()
   if (followCam.active) followCam.update(dt)
   else orbit.update()

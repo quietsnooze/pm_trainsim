@@ -74,6 +74,18 @@ describe('SoundDirector', () => {
     expect(backend.clunks).toBe(1)
   })
 
+  it('fires the beat callback on every chuff even while muted (smoke is not sound)', () => {
+    const backend = fakeBackend()
+    const director = new SoundDirector(backend)
+    const beats: number[] = []
+    director.onBeat = (n) => beats.push(n)
+    director.muted = true
+    for (let i = 0; i < 600; i++) director.update(1 / 60, 0.25)
+    expect(backend.chuffs).toHaveLength(0) // audio stayed silent
+    expect(beats.length).toBeGreaterThanOrEqual(45) // ~5/s for 10s
+    expect(beats.at(-1)).toBeCloseTo(1, 5)
+  })
+
   it('reports normalised speed to the backend (which makes fast running quieter)', () => {
     const backend = fakeBackend()
     const director = new SoundDirector(backend)
