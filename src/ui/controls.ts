@@ -8,8 +8,9 @@ const CSS = `
   bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 18px;
+  gap: 10px;
+  padding: 10px 14px;
+  max-width: calc(100vw - 16px);
   border-radius: 18px;
   background: rgba(24, 27, 33, 0.82);
   backdrop-filter: blur(10px);
@@ -20,8 +21,10 @@ const CSS = `
 .tc-throttle {
   -webkit-appearance: none;
   appearance: none;
-  width: min(52vw, 260px);
+  width: min(38vw, 220px);
   height: 56px;
+  flex-shrink: 1;
+  min-width: 110px;
   background: transparent;
   touch-action: none;
 }
@@ -65,19 +68,58 @@ const CSS = `
   border-color: #a04a44;
   color: #e0a09a;
 }
+.tc-whistle {
+  font: 600 26px/1 inherit;
+  padding: 0;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  border: 1px solid #4a5162;
+  background: #262b35;
+  color: #ffd54a;
+}
+.tc-whistle:active {
+  background: #3a4150;
+}
+.tc-mute {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  right: calc(env(safe-area-inset-right, 0px) + 14px);
+  font: 400 28px/1 inherit;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  border: 1px solid #4a5162;
+  background: rgba(24, 27, 33, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
 .tc-speed {
   font: 600 12px/1.2 inherit;
-  min-width: 44px;
+  min-width: 30px;
   text-align: center;
   opacity: 0.75;
 }
+.tc-dir,
+.tc-whistle {
+  flex-shrink: 0;
+}
 `
 
+export interface ControlsOptions {
+  /** Called when the whistle button is pressed. */
+  onWhistle?: () => void
+}
+
 /**
- * Provisional driving panel: throttle slider + direction toggle.
- * (The proper skeuomorphic controller replaces this in v1 — see CLAUDE.md.)
+ * The driving panel: throttle slider + direction toggle (play-tested and
+ * locked — see PRD #3), plus the whistle button.
  */
-export function createControls(train: Train, root: HTMLElement): { update(): void } {
+export function createControls(
+  train: Train,
+  root: HTMLElement,
+  options: ControlsOptions = {},
+): { update(): void } {
   const style = document.createElement('style')
   style.textContent = CSS
   document.head.appendChild(style)
@@ -103,7 +145,13 @@ export function createControls(train: Train, root: HTMLElement): { update(): voi
   speed.className = 'tc-speed'
   speed.textContent = '0'
 
-  panel.append(dirButton, throttle, speed)
+  const whistle = document.createElement('button')
+  whistle.className = 'tc-whistle'
+  whistle.textContent = '♪'
+  whistle.setAttribute('aria-label', 'Whistle')
+  whistle.addEventListener('click', () => options.onWhistle?.())
+
+  panel.append(dirButton, throttle, whistle, speed)
   root.appendChild(panel)
 
   throttle.addEventListener('input', () => {
@@ -129,4 +177,27 @@ export function createControls(train: Train, root: HTMLElement): { update(): voi
       speed.textContent = String(Math.round(train.speed * 500))
     },
   }
+}
+
+/**
+ * The big always-visible mute button (top-right, clear of the notch).
+ * One tap silences everything, instantly.
+ */
+export function createMuteButton(
+  root: HTMLElement,
+  isMuted: () => boolean,
+  setMuted: (muted: boolean) => void,
+): void {
+  const button = document.createElement('button')
+  button.className = 'tc-mute'
+  const render = (): void => {
+    button.textContent = isMuted() ? '🔇' : '🔊'
+    button.setAttribute('aria-label', isMuted() ? 'Sound off — tap to unmute' : 'Sound on — tap to mute')
+  }
+  button.addEventListener('click', () => {
+    setMuted(!isMuted())
+    render()
+  })
+  render()
+  root.appendChild(button)
 }
