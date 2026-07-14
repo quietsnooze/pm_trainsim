@@ -3,8 +3,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { buildDiorama } from './scene/diorama'
 import { FollowCam } from './scene/followCam'
 import { PointsMesh } from './scene/pointsMesh'
+import { buildStation } from './scene/station'
 import { buildTrackMesh } from './scene/trackMesh'
-import { TrainMesh } from './scene/trainMesh'
+import { CONSIST_LENGTH, TrainMesh } from './scene/trainMesh'
 import { makeOvalSidingGraph } from './sim/layouts'
 import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
@@ -29,8 +30,9 @@ scene.add(buildTrackMesh(track))
 
 const pointsMesh = new PointsMesh(track)
 scene.add(pointsMesh.group)
+scene.add(buildStation())
 
-const train = new Train(track)
+const train = new Train(track, CONSIST_LENGTH + 0.02)
 const trainMesh = new TrainMesh(train)
 scene.add(trainMesh.group)
 

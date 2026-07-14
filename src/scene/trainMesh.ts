@@ -191,6 +191,9 @@ function buildCoach(): THREE.Group {
   return g
 }
 
+/** Path length the full rake occupies — the sim ribbon must cover this. */
+export const CONSIST_LENGTH = 0.112 + 0.058 + 0.098 * 4
+
 /**
  * The whole rake — loco, tender, coaches — posed along the track by sampling
  * the travelled path either side of each vehicle's centre.
@@ -203,6 +206,8 @@ export class TrainMesh {
     const consist: Array<{ build: () => THREE.Group; length: number }> = [
       { build: buildLoco, length: 0.112 },
       { build: buildTender, length: 0.058 },
+      { build: buildCoach, length: 0.098 },
+      { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
     ]
