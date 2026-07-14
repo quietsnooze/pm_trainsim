@@ -15,24 +15,34 @@ interface PointVisual {
   angles: [number, number]
   currentAngle: number
   ribbons: [THREE.Mesh, THREE.Mesh]
-  hit: THREE.Mesh
+  hits: THREE.Mesh[]
 }
 
-/** Bright ribbon laid along the first stretch of a leg, showing the route. */
-function buildRouteRibbon(graph: TrackGraph, leg: EndRef): THREE.Mesh {
-  const geom = graph.segment(leg.seg)
-  const span = Math.min(RIBBON_LENGTH, geom.length)
+/**
+ * A strip laid along a segment, walking inward from the given end — used
+ * for the glowing route ribbons and (wider, invisible) for tap zones.
+ */
+function buildTrackStrip(
+  graph: TrackGraph,
+  from: EndRef,
+  length: number,
+  width: number,
+  y: number,
+  material: THREE.Material,
+): THREE.Mesh {
+  const geom = graph.segment(from.seg)
+  const span = Math.min(length, geom.length)
   const steps = 12
   const positions: number[] = []
   const indices: number[] = []
   for (let i = 0; i <= steps; i++) {
     const along = (i / steps) * span
-    const at = leg.end === 'a' ? along : geom.length - along
+    const at = from.end === 'a' ? along : geom.length - along
     const { position, tangent } = geom.sampleAt(at)
     const nx = -tangent.z
     const nz = tangent.x
-    positions.push(position.x + nx * RIBBON_WIDTH * 0.5, RIBBON_Y, position.z + nz * RIBBON_WIDTH * 0.5)
-    positions.push(position.x - nx * RIBBON_WIDTH * 0.5, RIBBON_Y, position.z - nz * RIBBON_WIDTH * 0.5)
+    positions.push(position.x + nx * width * 0.5, y, position.z + nz * width * 0.5)
+    positions.push(position.x - nx * width * 0.5, y, position.z - nz * width * 0.5)
     if (i < steps) {
       const a = i * 2
       indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3)
@@ -42,17 +52,28 @@ function buildRouteRibbon(graph: TrackGraph, leg: EndRef): THREE.Mesh {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geo.setIndex(indices)
   geo.computeVertexNormals()
-  return new THREE.Mesh(
-    geo,
-    new THREE.MeshStandardMaterial({
-      color: '#ffd54a',
-      emissive: '#8a6a10',
-      roughness: 0.6,
-      transparent: true,
-      opacity: 0.85,
-      side: THREE.DoubleSide,
-    }),
-  )
+  return new THREE.Mesh(geo, material)
+}
+
+function ribbonMaterial(): THREE.Material {
+  return new THREE.MeshStandardMaterial({
+    color: '#ffd54a',
+    emissive: '#8a6a10',
+    roughness: 0.6,
+    transparent: true,
+    opacity: 0.85,
+    side: THREE.DoubleSide,
+  })
+}
+
+/** Invisible to the eye, solid to the raycaster. */
+function hitMaterial(): THREE.Material {
+  return new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  })
 }
 
 /**
@@ -87,25 +108,35 @@ export class PointsMesh {
 
       // Route ribbons, one per leg; visibility tracks the point state.
       const ribbons: [THREE.Mesh, THREE.Mesh] = [
-        buildRouteRibbon(graph, info.legs[0]),
-        buildRouteRibbon(graph, info.legs[1]),
+        buildTrackStrip(graph, info.legs[0], RIBBON_LENGTH, RIBBON_WIDTH, RIBBON_Y, ribbonMaterial()),
+        buildTrackStrip(graph, info.legs[1], RIBBON_LENGTH, RIBBON_WIDTH, RIBBON_Y, ribbonMaterial()),
       ]
       ribbons.forEach((r, i) => {
         r.visible = i === info.route
         this.group.add(r)
       })
 
-      // Tap disc: generous and softly visible so it invites a poke.
-      const hit = new THREE.Mesh(
+      // Tap zones: the whole junction is the button — wide invisible strips
+      // along the approach and the first stretch of BOTH routes, plus a
+      // softly visible disc at the toe as the visual invitation.
+      const hits: THREE.Mesh[] = [
+        buildTrackStrip(graph, info.toe, 0.1, 0.06, RIBBON_Y + 0.0002, hitMaterial()),
+        buildTrackStrip(graph, info.legs[0], 0.14, 0.06, RIBBON_Y + 0.0002, hitMaterial()),
+        buildTrackStrip(graph, info.legs[1], 0.14, 0.06, RIBBON_Y + 0.0002, hitMaterial()),
+      ]
+      const disc = new THREE.Mesh(
         new THREE.CircleGeometry(HIT_RADIUS, 24),
         new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.1 }),
       )
-      hit.rotation.x = -Math.PI / 2
-      hit.position.set(info.position.x, RIBBON_Y, info.position.z)
-      hit.userData.pointId = id
-      this.group.add(hit)
+      disc.rotation.x = -Math.PI / 2
+      disc.position.set(info.position.x, RIBBON_Y, info.position.z)
+      hits.push(disc)
+      for (const h of hits) {
+        h.userData.pointId = id
+        this.group.add(h)
+      }
 
-      this.visuals.push({ id, pivot, angles, currentAngle: angles[info.route], ribbons, hit })
+      this.visuals.push({ id, pivot, angles, currentAngle: angles[info.route], ribbons, hits })
     })
   }
 
@@ -124,7 +155,8 @@ export class PointsMesh {
   /** The point id under the given normalised device coords, or null. */
   pick(ndc: { x: number; y: number }, camera: THREE.Camera): string | null {
     this.raycaster.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera)
-    const hits = this.raycaster.intersectObjects(this.visuals.map((v) => v.hit))
+    const targets = this.visuals.flatMap((v) => v.hits)
+    const hits = this.raycaster.intersectObjects(targets)
     const first = hits[0]?.object as THREE.Mesh | undefined
     return (first?.userData.pointId as string | undefined) ?? null
   }

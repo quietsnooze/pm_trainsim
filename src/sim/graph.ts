@@ -45,6 +45,8 @@ export interface PointInfo {
   legDirs: [Vec2, Vec2]
   /** The leg ends themselves, for drawing route previews. */
   legs: [EndRef, EndRef]
+  /** The toe end, for drawing/hit-testing the approach side. */
+  toe: EndRef
   route: 0 | 1
 }
 
@@ -136,6 +138,7 @@ export class TrackGraph {
         position: toe.position,
         legDirs: [legDir(p.legs[0]), legDir(p.legs[1])],
         legs: p.legs,
+        toe: p.toe,
         route: p.route,
       })
     }
