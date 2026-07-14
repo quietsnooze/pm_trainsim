@@ -5,8 +5,10 @@ import { PointsMesh } from './scene/pointsMesh'
 import { buildTrackMesh } from './scene/trackMesh'
 import { TrainMesh } from './scene/trainMesh'
 import { makeOvalSidingGraph } from './sim/layouts'
+import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
-import { createControls } from './ui/controls'
+import { WebAudioBackend } from './ui/audio'
+import { createControls, createMuteButton } from './ui/controls'
 import { attachTapPoints } from './ui/tapPoints'
 
 const app = document.getElementById('app')!
@@ -42,8 +44,20 @@ orbit.maxDistance = 2.2
 orbit.minPolarAngle = 0.15
 orbit.maxPolarAngle = 1.35 // don't let the camera dip below the table
 
-const controls = createControls(train, document.body)
-attachTapPoints(renderer.domElement, camera, pointsMesh, track)
+// Sound: gentle by default, one big mute. iOS needs a user gesture before
+// audio can start, so unlock on every pointerdown (idempotent, also brings
+// audio back after the app is backgrounded).
+const audioBackend = new WebAudioBackend()
+const sound = new SoundDirector(audioBackend)
+window.addEventListener('pointerdown', () => audioBackend.unlock())
+
+const controls = createControls(train, document.body, { onWhistle: () => sound.whistle() })
+createMuteButton(
+  document.body,
+  () => sound.muted,
+  (muted) => (sound.muted = muted),
+)
+attachTapPoints(renderer.domElement, camera, pointsMesh, track, () => sound.pointClunk())
 
 // Initial framing: pull further back on narrow (portrait phone) screens so
 // the whole baseboard fits. Only applied once — after that the orbit is yours.
@@ -77,6 +91,7 @@ renderer.setAnimationLoop(() => {
   train.update(dt)
   trainMesh.update()
   pointsMesh.update(dt)
+  sound.update(dt, train.speed)
   controls.update()
   orbit.update()
   renderer.render(scene, camera)

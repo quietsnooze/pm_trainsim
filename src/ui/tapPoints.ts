@@ -14,6 +14,7 @@ export function attachTapPoints(
   camera: THREE.Camera,
   pointsMesh: PointsMesh,
   graph: TrackGraph,
+  onToggle?: () => void,
 ): void {
   let downAt = 0
   let downX = 0
@@ -35,6 +36,9 @@ export function attachTapPoints(
       y: -(((e.clientY - rect.top) / rect.height) * 2 - 1),
     }
     const id = pointsMesh.pick(ndc, camera)
-    if (id) graph.setPoint(id, graph.getPoint(id) === 0 ? 1 : 0)
+    if (id) {
+      graph.setPoint(id, graph.getPoint(id) === 0 ? 1 : 0)
+      onToggle?.()
+    }
   })
 }
