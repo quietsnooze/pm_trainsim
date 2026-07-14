@@ -41,7 +41,7 @@ export class FollowCam {
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
     private readonly orbit: OrbitControls,
-    private readonly train: Train,
+    private readonly getTrain: () => Train,
     private readonly home: () => HomePose,
   ) {}
 
@@ -75,13 +75,14 @@ export class FollowCam {
   }
 
   private follow(dt: number): void {
-    const { position, tangent } = this.train.sampleBehindHead(LOCO_CENTER)
+    const train = this.getTrain()
+    const { position, tangent } = train.sampleBehindHead(LOCO_CENTER)
     // Anchor ahead of the engine in the direction of travel, further the
     // faster she goes, so the nose keeps clear space in front of it.
     // Lead ≈ the smoothing lag (speed / SMOOTHING) plus a little margin,
     // so the nose keeps clear space without falling out the back of frame.
-    const speedNorm = Math.min(this.train.speed / MAX_SPEED, 1)
-    const lead = (0.02 + speedNorm * 0.04) * this.train.direction
+    const speedNorm = Math.min(train.speed / MAX_SPEED, 1)
+    const lead = (0.02 + speedNorm * 0.04) * train.direction
     const ax = position.x + tangent.x * lead
     const az = position.z + tangent.z * lead
     const heading = Math.atan2(-tangent.z, tangent.x)

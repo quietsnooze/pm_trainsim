@@ -97,6 +97,14 @@ describe('Train through points', () => {
 })
 
 describe('Train kinematics', () => {
+  it('honours a per-train profile (a gentler engine tops out lower)', () => {
+    const stately = new Train(makeOvalGraph(), 0.45, { maxSpeed: 0.1, accel: 2 })
+    stately.throttle = 1
+    for (let i = 0; i < 600; i++) stately.update(1 / 60)
+    expect(stately.speed).toBeGreaterThan(0.09)
+    expect(stately.speed).toBeLessThanOrEqual(0.1)
+  })
+
   it('accelerates gently towards the throttle and coasts to a stop', () => {
     const train = new Train(makeOvalGraph())
     train.throttle = 1

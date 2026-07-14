@@ -1,10 +1,10 @@
 import type { Cursor, CursorState, TrackGraph } from './graph'
 import type { PathSample } from './track'
 
-/** Top speed at full throttle, in tabletop metres per second. */
-const MAX_SPEED = 0.25
-/** How quickly actual speed chases target speed (per second). */
-const ACCEL_RATE = 2.5
+import type { KinematicsProfile } from './trains'
+
+/** Default character: Mallard-ish. */
+const DEFAULT_PROFILE: KinematicsProfile = { maxSpeed: 0.25, accel: 2.5 }
 /** Breadcrumb spacing along the travelled path. */
 const RIBBON_STEP = 0.01
 /** Extra ribbon kept beyond each end of the train. */
@@ -54,6 +54,8 @@ export class Train {
     readonly graph: TrackGraph,
     /** Path length the consist occupies behind the head. */
     readonly length = 0.45,
+    /** Per-train character: top speed and how eagerly it chases it. */
+    readonly profile: KinematicsProfile = DEFAULT_PROFILE,
   ) {
     // Head starts at the spawn point; walk backwards to lay ribbon under
     // where the coaches will sit.
@@ -93,8 +95,8 @@ export class Train {
   }
 
   update(dt: number): void {
-    const target = this.throttle * MAX_SPEED
-    const blend = 1 - Math.exp(-ACCEL_RATE * dt)
+    const target = this.throttle * this.profile.maxSpeed
+    const blend = 1 - Math.exp(-this.profile.accel * dt)
     this.speed += (target - this.speed) * blend
     if (this.speed < 0.0005 && this.throttle === 0) this.speed = 0
     const delta = this.speed * dt
