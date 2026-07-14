@@ -10,9 +10,11 @@ import { CHIMNEY_BEHIND_HEAD, CHIMNEY_HEIGHT, CONSIST_LENGTH, TrainMesh } from '
 import { makeOvalSidingGraph } from './sim/layouts'
 import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
+import { TRAINS, trainSpec, type TrainSpec } from './sim/trains'
 import { WebAudioBackend } from './ui/audio'
 import { createCameraButton, createControls, createMuteButton } from './ui/controls'
 import { attachTapPoints } from './ui/tapPoints'
+import { createTrainPicker } from './ui/trainPicker'
 
 const app = document.getElementById('app')!
 
@@ -33,9 +35,23 @@ const pointsMesh = new PointsMesh(track)
 scene.add(pointsMesh.group)
 scene.add(buildStation())
 
-const train = new Train(track, CONSIST_LENGTH + 0.02)
-const trainMesh = new TrainMesh(train)
+let currentSpec: TrainSpec = trainSpec('mallard')
+let train = new Train(track, CONSIST_LENGTH + 0.02, currentSpec.kinematics)
+let trainMesh = new TrainMesh(train, currentSpec.id)
 scene.add(trainMesh.group)
+
+/** Swap the running train: same spot on the shelf, different engine. */
+function setTrain(spec: TrainSpec): void {
+  if (spec.id === currentSpec.id) return
+  const { throttle, direction } = train
+  scene.remove(trainMesh.group)
+  currentSpec = spec
+  train = new Train(track, CONSIST_LENGTH + 0.02, spec.kinematics)
+  train.throttle = throttle
+  train.direction = direction
+  trainMesh = new TrainMesh(train, spec.id)
+  scene.add(trainMesh.group)
+}
 
 const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 20)
 
@@ -63,10 +79,11 @@ sound.onBeat = (effort) => {
   smoke.puff(new THREE.Vector3(position.x, RAIL_TOP_Y + CHIMNEY_HEIGHT, position.z), effort)
 }
 
-const followCam = new FollowCam(camera, orbit, train, homePose)
+const followCam = new FollowCam(camera, orbit, () => train, homePose)
 
-const controls = createControls(train, document.body, { onWhistle: () => sound.whistle() })
+const controls = createControls(() => train, document.body, { onWhistle: () => sound.whistle() })
 createCameraButton(document.body, () => followCam.toggle())
+createTrainPicker(document.body, TRAINS, () => currentSpec.id, setTrain)
 createMuteButton(
   document.body,
   () => sound.muted,

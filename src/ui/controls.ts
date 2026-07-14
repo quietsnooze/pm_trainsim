@@ -133,7 +133,7 @@ export interface ControlsOptions {
  * locked — see PRD #3), plus the whistle button.
  */
 export function createControls(
-  train: Train,
+  getTrain: () => Train,
   root: HTMLElement,
   options: ControlsOptions = {},
 ): { update(): void } {
@@ -172,12 +172,12 @@ export function createControls(
   root.appendChild(panel)
 
   throttle.addEventListener('input', () => {
-    train.throttle = Number(throttle.value) / 100
+    getTrain().throttle = Number(throttle.value) / 100
   })
 
   dirButton.addEventListener('click', () => {
-    const next = train.direction === 1 ? -1 : 1
-    if (train.setDirection(next)) {
+    const next = getTrain().direction === 1 ? -1 : 1
+    if (getTrain().setDirection(next)) {
       dirButton.textContent = next === 1 ? '▶' : '◀'
       dirButton.setAttribute('aria-label', next === 1 ? 'Direction: forward' : 'Direction: reverse')
       dirButton.dataset.blocked = ''
@@ -191,7 +191,7 @@ export function createControls(
   return {
     update() {
       // Scaled to read like a loco speedometer rather than tabletop m/s.
-      speed.textContent = String(Math.round(train.speed * 500))
+      speed.textContent = String(Math.round(getTrain().speed * 500))
     },
   }
 }

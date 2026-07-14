@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Train } from '../sim/train'
+import type { TrainId } from '../sim/trains'
 import { RAIL_TOP_Y } from './trackMesh'
 
 // Palette (loosely LNER): garter blue body, red wheels, teak coaches.
@@ -7,6 +8,8 @@ const GARTER_BLUE = '#2b4a8b'
 const UNDERFRAME = '#20242c'
 const WHEEL_RED = '#8b2f2b'
 const TYRE_DARK = '#26262a'
+const APPLE_GREEN = '#3d6b3a'
+const SMOKEBOX = '#3a3d42'
 const TEAK = '#6d4a2f'
 const ROOF_WHITE = '#d8d5cc'
 const BRASS = '#c8a24a'
@@ -73,7 +76,11 @@ function textPlaque(
     ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth)
   }
   ctx.fillStyle = opts.fg
-  ctx.font = `700 ${Math.round(canvas.height * 0.66)}px -apple-system, 'Segoe UI', sans-serif`
+  let fontPx = Math.round(canvas.height * 0.66)
+  do {
+    ctx.font = `700 ${fontPx}px -apple-system, 'Segoe UI', sans-serif`
+    fontPx -= 2
+  } while (fontPx > 8 && ctx.measureText(text).width > canvas.width * 0.92)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(text, canvas.width / 2, canvas.height / 2 + canvas.height * 0.03)
@@ -103,7 +110,7 @@ const STEEL = '#c8c4bc'
  * spokes with daylight between them — so you can SEE it going round —
  * plus a steel crank pin for the coupling rod, poking outward.
  */
-function buildSpokedWheelFace(radius: number, pinOut: number): THREE.Group {
+function buildSpokedWheelFace(radius: number, pinOut: number, wheelColor: string): THREE.Group {
   const g = new THREE.Group()
   const tyre = new THREE.Mesh(
     new THREE.TorusGeometry(radius - 0.0012, 0.0014, 6, 20),
@@ -113,12 +120,12 @@ function buildSpokedWheelFace(radius: number, pinOut: number): THREE.Group {
   g.add(tyre)
   const hub = new THREE.Mesh(
     new THREE.CylinderGeometry(0.0022, 0.0022, 0.003, 10),
-    new THREE.MeshStandardMaterial({ color: WHEEL_RED, roughness: 0.55 }),
+    new THREE.MeshStandardMaterial({ color: wheelColor, roughness: 0.55 }),
   )
   hub.rotation.x = Math.PI / 2
   g.add(hub)
   const spokeGeo = new THREE.BoxGeometry((radius - 0.0015) * 2, 0.0016, 0.0016)
-  const spokeMat = new THREE.MeshStandardMaterial({ color: WHEEL_RED, roughness: 0.55 })
+  const spokeMat = new THREE.MeshStandardMaterial({ color: wheelColor, roughness: 0.55 })
   for (let i = 0; i < 3; i++) {
     const spoke = new THREE.Mesh(spokeGeo, spokeMat)
     spoke.rotation.z = (i * Math.PI) / 3
@@ -139,7 +146,7 @@ function buildSpokedWheelFace(radius: number, pinOut: number): THREE.Group {
  * The left-hand face is set 90° round so the two sides' cranks are
  * quartered, as on a real locomotive.
  */
-function buildDriverAxle(radius: number, width: number): THREE.Group {
+function buildDriverAxle(radius: number, width: number, wheelColor: string): THREE.Group {
   const g = new THREE.Group()
   const axle = new THREE.Mesh(
     new THREE.CylinderGeometry(0.0018, 0.0018, width, 8),
@@ -148,7 +155,7 @@ function buildDriverAxle(radius: number, width: number): THREE.Group {
   axle.rotation.x = Math.PI / 2
   g.add(axle)
   for (const side of [-1, 1]) {
-    const wheel = buildSpokedWheelFace(radius, side * 0.002)
+    const wheel = buildSpokedWheelFace(radius, side * 0.002, wheelColor)
     wheel.position.z = (side * width) / 2
     if (side === -1) wheel.rotation.z = Math.PI / 2
     g.add(wheel)
@@ -173,7 +180,7 @@ function buildPlainAxle(radius: number, width: number): THREE.Group {
  * LNER A4 4468 "Mallard", as preserved: streamlined casing with the side
  * valances removed, so her big red spoked driving wheels are on show.
  */
-function buildLoco(): VehicleBuild {
+function buildMallardLoco(): VehicleBuild {
   const g = new THREE.Group()
   const width = 0.026
   const half = width / 2
@@ -232,7 +239,7 @@ function buildLoco(): VehicleBuild {
   const driverR = 0.0095
   const driverXs = [-0.024, 0, 0.024]
   for (const x of driverXs) {
-    const axle = buildDriverAxle(driverR, width - 0.006)
+    const axle = buildDriverAxle(driverR, width - 0.006, WHEEL_RED)
     axle.position.set(x, driverR, 0)
     g.add(axle)
     axles.push({ group: axle, radius: driverR })
@@ -273,12 +280,126 @@ function buildLoco(): VehicleBuild {
   return { group: g, axles, rods }
 }
 
-/** The A4's corridor tender, lettered L N E R, now on visible wheels. */
-function buildTender(): VehicleBuild {
+/**
+ * LNER A3 4472 "Flying Scotsman": conventional boiler with smokebox,
+ * tall chimney and dome, apple green with green spoked drivers.
+ */
+function buildScotsmanLoco(): VehicleBuild {
+  const g = new THREE.Group()
+  const width = 0.026
+  const half = width / 2
+  const axles: Axle[] = []
+
+  const frame = box(0.096, 0.01, 0.008, UNDERFRAME, 0.8)
+  frame.position.set(0, 0.009, 0)
+  g.add(frame)
+  const runningPlate = box(0.1, 0.003, width, APPLE_GREEN)
+  runningPlate.position.set(0, 0.0155, 0)
+  g.add(runningPlate)
+
+  // Round boiler with a darker smokebox and its door at the front.
+  const boiler = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.011, 0.011, 0.056, 14),
+    new THREE.MeshStandardMaterial({ color: APPLE_GREEN, roughness: 0.35 }),
+  )
+  boiler.rotation.z = Math.PI / 2
+  boiler.position.set(0.002, 0.0285, 0)
+  boiler.castShadow = true
+  g.add(boiler)
+  const smokebox = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0112, 0.0112, 0.016, 14),
+    new THREE.MeshStandardMaterial({ color: SMOKEBOX, roughness: 0.5 }),
+  )
+  smokebox.rotation.z = Math.PI / 2
+  smokebox.position.set(0.037, 0.0285, 0)
+  smokebox.castShadow = true
+  g.add(smokebox)
+  const door = new THREE.Mesh(
+    new THREE.SphereGeometry(0.0108, 12, 8),
+    new THREE.MeshStandardMaterial({ color: SMOKEBOX, roughness: 0.5 }),
+  )
+  door.scale.x = 0.35
+  door.position.set(0.0455, 0.0285, 0)
+  g.add(door)
+
+  // Tall chimney at the front, brass dome mid-boiler.
+  const chimney = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0028, 0.0034, 0.008, 10),
+    new THREE.MeshStandardMaterial({ color: UNDERFRAME, roughness: 0.5 }),
+  )
+  chimney.position.set(0.038, 0.0435, 0)
+  chimney.castShadow = true
+  g.add(chimney)
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.0045, 12, 8),
+    new THREE.MeshStandardMaterial({ color: BRASS, roughness: 0.35, metalness: 0.4 }),
+  )
+  dome.position.set(0.008, 0.0395, 0)
+  dome.castShadow = true
+  g.add(dome)
+
+  // Cab with the number, and a grey roof.
+  const cab = box(0.024, 0.024, width, APPLE_GREEN)
+  cab.position.set(-0.038, 0.029, 0)
+  g.add(cab)
+  const cabRoof = box(0.026, 0.003, width + 0.002, SMOKEBOX, 0.6)
+  cabRoof.position.set(-0.038, 0.0425, 0)
+  g.add(cabRoof)
+  const numberPlate = textPlaque('4472', 0.02, 0.011, half, {
+    bg: APPLE_GREEN,
+    fg: '#f3efe4',
+    border: BRASS,
+  })
+  numberPlate.position.set(-0.038, 0.029, 0)
+  g.add(numberPlate)
+  const namePlate = textPlaque('FLYING SCOTSMAN', 0.032, 0.0045, 0.0115, {
+    bg: BRASS,
+    fg: '#3a2c14',
+  })
+  namePlate.position.set(0.002, 0.031, 0)
+  g.add(namePlate)
+
+  // Three green spoked driving axles and their coupling rods.
+  const driverR = 0.0095
+  const driverXs = [-0.024, 0, 0.024]
+  for (const x of driverXs) {
+    const axle = buildDriverAxle(driverR, width - 0.006, APPLE_GREEN)
+    axle.position.set(x, driverR, 0)
+    g.add(axle)
+    axles.push({ group: axle, radius: driverR })
+  }
+  const rods: Rod[] = []
+  const rodLength = driverXs[2] - driverXs[0] + 0.012
+  const rodZ = (width - 0.006) / 2 + 0.002
+  for (const side of [-1, 1]) {
+    const rod = new THREE.Mesh(
+      new THREE.BoxGeometry(rodLength, 0.0022, 0.0014),
+      new THREE.MeshStandardMaterial({ color: STEEL, roughness: 0.35, metalness: 0.6 }),
+    )
+    rod.castShadow = true
+    g.add(rod)
+    rods.push({
+      mesh: rod,
+      phase: side === -1 ? Math.PI / 2 : 0,
+      wheelRadius: driverR,
+      crankRadius: driverR * CRANK_FRACTION,
+      base: new THREE.Vector3(0, driverR, side * rodZ),
+    })
+  }
+
+  const bufferBeam = box(0.003, 0.008, width - 0.006, WHEEL_RED, 0.6)
+  bufferBeam.position.set(0.0505, 0.009, 0)
+  g.add(bufferBeam)
+
+  return { group: g, axles, rods }
+}
+
+/** A tender in the loco's livery, lettered L N E R, on visible wheels. */
+function buildTender(liveryColor: string): VehicleBuild {
   const g = new THREE.Group()
   const width = 0.025
   const axles: Axle[] = []
-  const body = box(0.05, 0.021, width, GARTER_BLUE)
+  const body = box(0.05, 0.021, width, liveryColor)
   body.position.y = 0.0245
   g.add(body)
   const chassis = box(0.046, 0.007, width - 0.006, UNDERFRAME, 0.8)
@@ -291,7 +412,7 @@ function buildTender(): VehicleBuild {
     axles.push({ group: axle, radius: 0.0062 })
   }
   const lettering = textPlaque('L N E R', 0.04, 0.009, width / 2, {
-    bg: GARTER_BLUE,
+    bg: liveryColor,
     fg: BRASS,
   })
   lettering.position.set(0, 0.025, 0)
@@ -337,10 +458,18 @@ export class TrainMesh {
   readonly group = new THREE.Group()
   private readonly vehicles: Vehicle[] = []
 
-  constructor(private readonly train: Train) {
+  constructor(
+    private readonly train: Train,
+    kind: TrainId = 'mallard',
+  ) {
+    const locoOf: Record<TrainId, { build: () => VehicleBuild; livery: string }> = {
+      mallard: { build: buildMallardLoco, livery: GARTER_BLUE },
+      scotsman: { build: buildScotsmanLoco, livery: APPLE_GREEN },
+    }
+    const { build: buildEngine, livery } = locoOf[kind]
     const consist: Array<{ build: () => VehicleBuild; length: number }> = [
-      { build: buildLoco, length: 0.112 },
-      { build: buildTender, length: 0.058 },
+      { build: buildEngine, length: 0.112 },
+      { build: () => buildTender(livery), length: 0.058 },
       { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
