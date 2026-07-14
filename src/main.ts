@@ -1,11 +1,13 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { buildDiorama } from './scene/diorama'
+import { PointsMesh } from './scene/pointsMesh'
 import { buildTrackMesh } from './scene/trackMesh'
 import { TrainMesh } from './scene/trainMesh'
-import { makeOvalGraph } from './sim/layouts'
+import { makeOvalSidingGraph } from './sim/layouts'
 import { Train } from './sim/train'
 import { createControls } from './ui/controls'
+import { attachTapPoints } from './ui/tapPoints'
 
 const app = document.getElementById('app')!
 
@@ -19,8 +21,11 @@ app.appendChild(renderer.domElement)
 const scene = new THREE.Scene()
 buildDiorama(scene)
 
-const track = makeOvalGraph()
+const track = makeOvalSidingGraph()
 scene.add(buildTrackMesh(track))
+
+const pointsMesh = new PointsMesh(track)
+scene.add(pointsMesh.group)
 
 const train = new Train(track)
 const trainMesh = new TrainMesh(train)
@@ -38,6 +43,7 @@ orbit.minPolarAngle = 0.15
 orbit.maxPolarAngle = 1.35 // don't let the camera dip below the table
 
 const controls = createControls(train, document.body)
+attachTapPoints(renderer.domElement, camera, pointsMesh, track)
 
 // Initial framing: pull further back on narrow (portrait phone) screens so
 // the whole baseboard fits. Only applied once — after that the orbit is yours.
@@ -70,6 +76,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05)
   train.update(dt)
   trainMesh.update()
+  pointsMesh.update(dt)
   controls.update()
   orbit.update()
   renderer.render(scene, camera)

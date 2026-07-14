@@ -6,7 +6,7 @@
  * A Cursor walks the graph by arc length, resolving each end-crossing via
  * the graph's connections and current point states.
  */
-import type { PathSample, TrackSegment } from './track'
+import type { PathSample, TrackSegment, Vec2 } from './track'
 
 export type EndName = 'a' | 'b'
 
@@ -33,6 +33,21 @@ interface Point {
   route: 0 | 1
 }
 
+/** What the scene layer needs to draw and hit-test a point. */
+export interface PointInfo {
+  /** Where the toe of the turnout sits on the tabletop. */
+  position: Vec2
+  /**
+   * Chord direction from the toe a short way into each leg. (True tangents
+   * are identical at the toe of a tangential turnout, so chords are what a
+   * blade visual actually wants.)
+   */
+  legDirs: [Vec2, Vec2]
+  /** The leg ends themselves, for drawing route previews. */
+  legs: [EndRef, EndRef]
+  route: 0 | 1
+}
+
 export class TrackGraph {
   private readonly segments = new Map<string, TrackSegment>()
   private readonly links = new Map<string, EndRef>()
@@ -55,6 +70,22 @@ export class TrackGraph {
   /** Enumerate segments (for the scene layer to build meshes from). */
   forEachSegment(cb: (id: string, geometry: TrackSegment) => void): void {
     for (const [id, geom] of this.segments) cb(id, geom)
+  }
+
+  /**
+   * Enumerate open (unconnected) track ends — buffer stops. `outward` points
+   * off the end of the track.
+   */
+  forEachOpenEnd(cb: (position: Vec2, outward: Vec2) => void): void {
+    for (const [id, geom] of this.segments) {
+      for (const end of ['a', 'b'] as const) {
+        const ref: EndRef = { seg: id, end }
+        if (this.links.has(endKey(ref)) || this.pointEnds.has(endKey(ref))) continue
+        const { position, tangent } = geom.sampleAt(end === 'b' ? geom.length : 0)
+        const sign = end === 'b' ? 1 : -1
+        cb(position, { x: tangent.x * sign, z: tangent.z * sign })
+      }
+    }
   }
 
   /** Join two segment ends so trains roll straight through. */
@@ -84,6 +115,30 @@ export class TrackGraph {
     const p = this.points.get(id)
     if (!p) throw new Error(`unknown point: ${id}`)
     return p.route
+  }
+
+  /** Enumerate points with the info the scene layer needs. */
+  forEachPoint(cb: (id: string, info: PointInfo) => void): void {
+    for (const [id, p] of this.points) {
+      const toeGeom = this.segment(p.toe.seg)
+      const toe = toeGeom.sampleAt(p.toe.end === 'b' ? toeGeom.length : 0)
+      const legDir = (leg: EndRef): Vec2 => {
+        const geom = this.segment(leg.seg)
+        const probe = Math.min(0.06, geom.length)
+        const at = leg.end === 'a' ? probe : geom.length - probe
+        const there = geom.sampleAt(at).position
+        const dx = there.x - toe.position.x
+        const dz = there.z - toe.position.z
+        const len = Math.hypot(dx, dz) || 1
+        return { x: dx / len, z: dz / len }
+      }
+      cb(id, {
+        position: toe.position,
+        legDirs: [legDir(p.legs[0]), legDir(p.legs[1])],
+        legs: p.legs,
+        route: p.route,
+      })
+    }
   }
 
   /** The end reached when leaving via `from`, or null at end-of-line. */
