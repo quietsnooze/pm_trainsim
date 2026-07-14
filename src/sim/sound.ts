@@ -1,40 +1,47 @@
 /**
  * Sound scheduling logic — no WebAudio here. The director decides *when*
- * sounds happen (chuffs timed to distance rolled, whistle, point clunk)
- * and a backend decides *how* they sound. Injecting a fake backend makes
- * the timing fully testable.
+ * sounds happen and a backend decides *how* they sound. Injecting a fake
+ * backend makes the timing fully testable.
  */
 
 export interface SoundBackend {
-  /** One exhaust beat; intensity 0..1 scales volume/brightness. */
-  chuff(intensity: number): void
+  /**
+   * One exhaust beat. `speedNorm` is the train's speed as 0..1 of top
+   * speed; the backend voices it (slow = loud and laboured, fast =
+   * quicker and quieter).
+   */
+  chuff(speedNorm: number): void
   whistle(): void
   clunk(): void
 }
 
-/** Top speed used to normalise chuff intensity (matches train kinematics). */
+/** Top speed used to normalise (matches train kinematics). */
 const MAX_SPEED = 0.25
 
 export class SoundDirector {
   muted = false
-  private distanceSinceChuff = 0
+  private phase = 0
 
   constructor(
     private readonly backend: SoundBackend,
-    /** How many exhaust beats per metre of travel. */
-    private readonly chuffsPerMetre = 20,
+    /** Exhaust beats per second at full speed. */
+    private readonly maxChuffRate = 5,
   ) {}
 
-  /** Advance by dt seconds at the given wheel speed (m/s). */
+  /**
+   * Advance by dt seconds at the given speed (m/s). The chuff rate follows
+   * a square-root curve: barely-moving gives slow deliberate beats, but a
+   * modest crawl already has a lively rhythm, and doubling speed does not
+   * double the beat.
+   */
   update(dt: number, speed: number): void {
     if (speed <= 0) return
-    this.distanceSinceChuff += speed * dt
-    const interval = 1 / this.chuffsPerMetre
-    while (this.distanceSinceChuff >= interval) {
-      this.distanceSinceChuff -= interval
-      if (!this.muted) {
-        this.backend.chuff(Math.min(speed / MAX_SPEED, 1))
-      }
+    const speedNorm = Math.min(speed / MAX_SPEED, 1)
+    const rate = this.maxChuffRate * Math.sqrt(speedNorm)
+    this.phase += rate * dt
+    while (this.phase >= 1) {
+      this.phase -= 1
+      if (!this.muted) this.backend.chuff(speedNorm)
     }
   }
 

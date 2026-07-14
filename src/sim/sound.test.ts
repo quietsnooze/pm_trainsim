@@ -6,8 +6,8 @@ function fakeBackend(): SoundBackend & { chuffs: number[]; whistles: number; clu
     chuffs: [] as number[],
     whistles: 0,
     clunks: 0,
-    chuff(intensity: number) {
-      log.chuffs.push(intensity)
+    chuff(speedNorm: number) {
+      log.chuffs.push(speedNorm)
     },
     whistle() {
       log.whistles++
@@ -19,31 +19,46 @@ function fakeBackend(): SoundBackend & { chuffs: number[]; whistles: number; clu
   return log
 }
 
+/** Run the director for `seconds` at a fixed speed; returns chuff count. */
+function chuffsIn(director: SoundDirector, backend: { chuffs: number[] }, seconds: number, speed: number): number {
+  const before = backend.chuffs.length
+  for (let i = 0; i < seconds * 60; i++) director.update(1 / 60, speed)
+  return backend.chuffs.length - before
+}
+
 describe('SoundDirector', () => {
-  it('fires chuffs at a rate proportional to speed', () => {
+  it('barely moving = slow deliberate chuffs; a modest crawl already has a lively beat', () => {
     const backend = fakeBackend()
-    const director = new SoundDirector(backend, 20) // 20 chuffs per metre
-    // 10 simulated seconds at 0.1 m/s -> ~20 chuffs; at 0.2 m/s -> ~40.
-    for (let i = 0; i < 600; i++) director.update(1 / 60, 0.1)
-    const slow = backend.chuffs.length
-    for (let i = 0; i < 600; i++) director.update(1 / 60, 0.2)
-    const fast = backend.chuffs.length - slow
-    expect(Math.abs(slow - 20)).toBeLessThanOrEqual(1)
-    expect(Math.abs(fast - 40)).toBeLessThanOrEqual(1)
+    const director = new SoundDirector(backend) // max rate 5/s at full speed 0.25
+    // Creeping at 1% of top speed: distinctly slow (well under 1 chuff/s).
+    expect(chuffsIn(director, backend, 10, 0.0025)).toBeLessThanOrEqual(8)
+    // A crawl at 15% of top speed: already a proper rhythm (~2/s).
+    const crawl = chuffsIn(director, backend, 10, 0.0375)
+    expect(crawl).toBeGreaterThanOrEqual(15)
+    expect(crawl).toBeLessThanOrEqual(25)
+  })
+
+  it('rate keeps rising with speed, but sub-linearly (doubling speed does not double the beat)', () => {
+    const backend = fakeBackend()
+    const director = new SoundDirector(backend)
+    const atHalf = chuffsIn(director, backend, 10, 0.125)
+    const atFull = chuffsIn(director, backend, 10, 0.25)
+    expect(atFull).toBeGreaterThan(atHalf)
+    expect(atFull).toBeLessThan(atHalf * 1.7) // sqrt-ish, not linear
   })
 
   it('is silent at a standstill', () => {
     const backend = fakeBackend()
-    const director = new SoundDirector(backend, 20)
+    const director = new SoundDirector(backend)
     for (let i = 0; i < 120; i++) director.update(1 / 60, 0)
     expect(backend.chuffs).toHaveLength(0)
   })
 
   it('mute silences everything and unmute resumes', () => {
     const backend = fakeBackend()
-    const director = new SoundDirector(backend, 20)
+    const director = new SoundDirector(backend)
     director.muted = true
-    for (let i = 0; i < 60; i++) director.update(1 / 60, 0.2)
+    for (let i = 0; i < 120; i++) director.update(1 / 60, 0.2)
     director.whistle()
     director.pointClunk()
     expect(backend.chuffs).toHaveLength(0)
@@ -51,7 +66,7 @@ describe('SoundDirector', () => {
     expect(backend.clunks).toBe(0)
 
     director.muted = false
-    for (let i = 0; i < 60; i++) director.update(1 / 60, 0.2)
+    for (let i = 0; i < 120; i++) director.update(1 / 60, 0.2)
     director.whistle()
     director.pointClunk()
     expect(backend.chuffs.length).toBeGreaterThan(0)
@@ -59,15 +74,14 @@ describe('SoundDirector', () => {
     expect(backend.clunks).toBe(1)
   })
 
-  it('chuffs get more intense with speed', () => {
+  it('reports normalised speed to the backend (which makes fast running quieter)', () => {
     const backend = fakeBackend()
-    const director = new SoundDirector(backend, 20)
-    for (let i = 0; i < 180; i++) director.update(1 / 60, 0.05)
-    const gentle = backend.chuffs.at(-1)!
-    for (let i = 0; i < 180; i++) director.update(1 / 60, 0.25)
-    const hard = backend.chuffs.at(-1)!
-    expect(hard).toBeGreaterThan(gentle)
-    expect(gentle).toBeGreaterThan(0)
-    expect(hard).toBeLessThanOrEqual(1)
+    const director = new SoundDirector(backend)
+    chuffsIn(director, backend, 5, 0.05)
+    const slowNorm = backend.chuffs.at(-1)!
+    chuffsIn(director, backend, 5, 0.25)
+    const fastNorm = backend.chuffs.at(-1)!
+    expect(slowNorm).toBeCloseTo(0.2, 5)
+    expect(fastNorm).toBeCloseTo(1, 5)
   })
 })
