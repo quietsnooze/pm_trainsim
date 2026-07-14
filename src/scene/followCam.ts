@@ -5,8 +5,8 @@ import type { Train } from '../sim/train'
 /** Camera sits 70° off the loco's nose — front-three-quarter view. */
 const VIEW_ANGLE = (70 * Math.PI) / 180
 const DISTANCE = 0.44
-/** Roughly level with the engine (loco roof is ~0.045). */
-const HEIGHT = 0.06
+/** Down at wheel height — the driving wheels are the show. */
+const HEIGHT = 0.038
 /** Distance from train head to the loco's visual centre. */
 const LOCO_CENTER = 0.056
 /** Matches train kinematics top speed, for normalising. */
@@ -89,7 +89,7 @@ export class FollowCam {
     const want = new THREE.Vector3(ax + Math.cos(a) * DISTANCE, HEIGHT, az - Math.sin(a) * DISTANCE)
     const blend = 1 - Math.exp(-SMOOTHING * dt)
     this.camera.position.lerp(want, blend)
-    this.lookAt.lerp(new THREE.Vector3(ax, 0.028, az), blend)
+    this.lookAt.lerp(new THREE.Vector3(ax, 0.02, az), blend)
     this.camera.lookAt(this.lookAt)
   }
 

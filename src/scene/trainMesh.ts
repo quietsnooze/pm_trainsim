@@ -6,12 +6,22 @@ import { RAIL_TOP_Y } from './trackMesh'
 const GARTER_BLUE = '#2b4a8b'
 const UNDERFRAME = '#20242c'
 const WHEEL_RED = '#8b2f2b'
+const TYRE_DARK = '#26262a'
 const TEAK = '#6d4a2f'
 const ROOF_WHITE = '#d8d5cc'
 const BRASS = '#c8a24a'
 
-interface Vehicle {
+interface Axle {
   group: THREE.Group
+  radius: number
+}
+
+interface VehicleBuild {
+  group: THREE.Group
+  axles: Axle[]
+}
+
+interface Vehicle extends VehicleBuild {
   /** Distance from the head of the train to this vehicle's centre. */
   centerOffset: number
   /** Spacing between the two path samples used to orient the body. */
@@ -73,21 +83,81 @@ function textPlaque(
 }
 
 /**
- * LNER A4 4468 "Mallard": streamlined casing, garter blue, red wheels,
- * the number big on the cab sides and the name on the boiler.
+ * A spoked wheel face in the x-y plane: dark tyre ring, red hub, red
+ * spokes with daylight between them — so you can SEE it going round.
  */
-function buildLoco(): THREE.Group {
+function buildSpokedWheelFace(radius: number): THREE.Group {
+  const g = new THREE.Group()
+  const tyre = new THREE.Mesh(
+    new THREE.TorusGeometry(radius - 0.0012, 0.0014, 6, 20),
+    new THREE.MeshStandardMaterial({ color: TYRE_DARK, roughness: 0.55 }),
+  )
+  tyre.castShadow = true
+  g.add(tyre)
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0022, 0.0022, 0.003, 10),
+    new THREE.MeshStandardMaterial({ color: WHEEL_RED, roughness: 0.55 }),
+  )
+  hub.rotation.x = Math.PI / 2
+  g.add(hub)
+  const spokeGeo = new THREE.BoxGeometry((radius - 0.0015) * 2, 0.0016, 0.0016)
+  const spokeMat = new THREE.MeshStandardMaterial({ color: WHEEL_RED, roughness: 0.55 })
+  for (let i = 0; i < 3; i++) {
+    const spoke = new THREE.Mesh(spokeGeo, spokeMat)
+    spoke.rotation.z = (i * Math.PI) / 3
+    g.add(spoke)
+  }
+  return g
+}
+
+/** A full axle: two spoked faces joined by a slim axle, spun as one. */
+function buildDriverAxle(radius: number, width: number): THREE.Group {
+  const g = new THREE.Group()
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.0018, 0.0018, width, 8),
+    new THREE.MeshStandardMaterial({ color: TYRE_DARK, roughness: 0.6 }),
+  )
+  axle.rotation.x = Math.PI / 2
+  g.add(axle)
+  const face = buildSpokedWheelFace(radius)
+  for (const side of [-1, 1]) {
+    const wheel = face.clone()
+    wheel.position.z = (side * width) / 2
+    g.add(wheel)
+  }
+  return g
+}
+
+/** A plain small axle for tenders and coaches (solid dark wheels). */
+function buildPlainAxle(radius: number, width: number): THREE.Group {
+  const g = new THREE.Group()
+  const wheels = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, width, 14),
+    new THREE.MeshStandardMaterial({ color: TYRE_DARK, roughness: 0.55 }),
+  )
+  wheels.rotation.x = Math.PI / 2
+  wheels.castShadow = true
+  g.add(wheels)
+  return g
+}
+
+/**
+ * LNER A4 4468 "Mallard", as preserved: streamlined casing with the side
+ * valances removed, so her big red spoked driving wheels are on show.
+ */
+function buildLoco(): VehicleBuild {
   const g = new THREE.Group()
   const width = 0.026
   const half = width / 2
+  const axles: Axle[] = []
 
-  // Underframe and full-length valance skirt.
-  const frame = box(0.1, 0.006, width - 0.004, UNDERFRAME, 0.8)
-  frame.position.set(0, 0.004, 0)
+  // Slim central frame and the running plate the body sits on.
+  const frame = box(0.096, 0.01, 0.008, UNDERFRAME, 0.8)
+  frame.position.set(0, 0.009, 0)
   g.add(frame)
-  const valance = box(0.1, 0.011, width, GARTER_BLUE)
-  valance.position.set(0, 0.0125, 0)
-  g.add(valance)
+  const runningPlate = box(0.1, 0.003, width, GARTER_BLUE)
+  runningPlate.position.set(0, 0.0155, 0)
+  g.add(runningPlate)
 
   // Streamlined boiler casing.
   const boiler = new THREE.Mesh(
@@ -99,8 +169,7 @@ function buildLoco(): THREE.Group {
   boiler.castShadow = true
   g.add(boiler)
 
-  // The famous sloping nose: a tilted capsule melting into the front,
-  // squashed sideways so it blends into the casing instead of ballooning.
+  // The famous sloping nose.
   const nose = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.0095, 0.016, 6, 12),
     new THREE.MeshStandardMaterial({ color: GARTER_BLUE, roughness: 0.32 }),
@@ -123,7 +192,7 @@ function buildLoco(): THREE.Group {
   numberPlate.position.set(-0.038, 0.0295, 0)
   g.add(numberPlate)
 
-  // Brass nameplate at mid-boiler height, clear of the casing's curve.
+  // Brass nameplate at mid-boiler height.
   const namePlate = textPlaque('MALLARD', 0.026, 0.0045, 0.0128, {
     bg: BRASS,
     fg: '#3a2c14',
@@ -131,15 +200,12 @@ function buildLoco(): THREE.Group {
   namePlate.position.set(0.012, 0.0295, 0)
   g.add(namePlate)
 
-  // Red driving wheels peeking below the valance.
-  for (const x of [-0.022, 0.001, 0.024]) {
-    const wheel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.0075, 0.0075, width - 0.005, 14),
-      new THREE.MeshStandardMaterial({ color: WHEEL_RED, roughness: 0.6 }),
-    )
-    wheel.rotation.x = Math.PI / 2
-    wheel.position.set(x, 0.0075, 0)
-    g.add(wheel)
+  // Three big spoked driving axles, fully visible and turning.
+  for (const x of [-0.024, 0, 0.024]) {
+    const axle = buildDriverAxle(0.0095, width - 0.006)
+    axle.position.set(x, 0.0095, 0)
+    g.add(axle)
+    axles.push({ group: axle, radius: 0.0095 })
   }
 
   // Chimney nub and front buffer beam.
@@ -154,41 +220,55 @@ function buildLoco(): THREE.Group {
   bufferBeam.position.set(0.0505, 0.009, 0)
   g.add(bufferBeam)
 
-  return g
+  return { group: g, axles }
 }
 
-/** The A4's corridor tender, lettered L N E R. */
-function buildTender(): THREE.Group {
+/** The A4's corridor tender, lettered L N E R, now on visible wheels. */
+function buildTender(): VehicleBuild {
   const g = new THREE.Group()
   const width = 0.025
-  const body = box(0.05, 0.023, width, GARTER_BLUE)
-  body.position.y = 0.0225
+  const axles: Axle[] = []
+  const body = box(0.05, 0.021, width, GARTER_BLUE)
+  body.position.y = 0.0245
   g.add(body)
-  const chassis = box(0.046, 0.009, width - 0.004, UNDERFRAME, 0.8)
-  chassis.position.y = 0.0045
+  const chassis = box(0.046, 0.007, width - 0.006, UNDERFRAME, 0.8)
+  chassis.position.y = 0.0105
   g.add(chassis)
+  for (const x of [-0.016, 0.016]) {
+    const axle = buildPlainAxle(0.0062, width - 0.008)
+    axle.position.set(x, 0.0062, 0)
+    g.add(axle)
+    axles.push({ group: axle, radius: 0.0062 })
+  }
   const lettering = textPlaque('L N E R', 0.04, 0.009, width / 2, {
     bg: GARTER_BLUE,
     fg: BRASS,
   })
-  lettering.position.set(0, 0.024, 0)
+  lettering.position.set(0, 0.025, 0)
   g.add(lettering)
-  return g
+  return { group: g, axles }
 }
 
-/** Teak coach. */
-function buildCoach(): THREE.Group {
+/** Teak coach, now on visible wheels. */
+function buildCoach(): VehicleBuild {
   const g = new THREE.Group()
-  const body = box(0.09, 0.02, 0.025, TEAK)
-  body.position.y = 0.016
+  const axles: Axle[] = []
+  const body = box(0.09, 0.019, 0.025, TEAK)
+  body.position.y = 0.0195
   g.add(body)
   const roof = box(0.086, 0.004, 0.022, ROOF_WHITE)
-  roof.position.y = 0.028
+  roof.position.y = 0.031
   g.add(roof)
-  const chassis = box(0.084, 0.008, 0.02, UNDERFRAME, 0.8)
-  chassis.position.y = 0.004
+  const chassis = box(0.084, 0.006, 0.019, UNDERFRAME, 0.8)
+  chassis.position.y = 0.008
   g.add(chassis)
-  return g
+  for (const x of [-0.032, 0.032]) {
+    const axle = buildPlainAxle(0.0058, 0.019)
+    axle.position.set(x, 0.0058, 0)
+    g.add(axle)
+    axles.push({ group: axle, radius: 0.0058 })
+  }
+  return { group: g, axles }
 }
 
 /** Path length the full rake occupies — the sim ribbon must cover this. */
@@ -196,14 +276,15 @@ export const CONSIST_LENGTH = 0.112 + 0.058 + 0.098 * 4
 
 /**
  * The whole rake — loco, tender, coaches — posed along the track by sampling
- * the travelled path either side of each vehicle's centre.
+ * the travelled path either side of each vehicle's centre. Wheels spin with
+ * the distance the sim says the train has rolled.
  */
 export class TrainMesh {
   readonly group = new THREE.Group()
   private readonly vehicles: Vehicle[] = []
 
   constructor(private readonly train: Train) {
-    const consist: Array<{ build: () => THREE.Group; length: number }> = [
+    const consist: Array<{ build: () => VehicleBuild; length: number }> = [
       { build: buildLoco, length: 0.112 },
       { build: buildTender, length: 0.058 },
       { build: buildCoach, length: 0.098 },
@@ -214,9 +295,9 @@ export class TrainMesh {
     let offset = 0
     for (const { build, length } of consist) {
       const vehicle = build()
-      this.group.add(vehicle)
+      this.group.add(vehicle.group)
       this.vehicles.push({
-        group: vehicle,
+        ...vehicle,
         centerOffset: offset + length / 2,
         axleSpan: length * 0.6,
       })
@@ -225,13 +306,17 @@ export class TrainMesh {
     this.update()
   }
 
-  /** Re-pose every vehicle from the sim's current position. */
+  /** Re-pose every vehicle and spin every axle from the sim's state. */
   update(): void {
+    const rolled = this.train.travelled
     for (const v of this.vehicles) {
       const a = this.train.sampleBehindHead(v.centerOffset - v.axleSpan / 2).position
       const b = this.train.sampleBehindHead(v.centerOffset + v.axleSpan / 2).position
       v.group.position.set((a.x + b.x) / 2, RAIL_TOP_Y, (a.z + b.z) / 2)
       v.group.rotation.y = Math.atan2(-(a.z - b.z), a.x - b.x)
+      for (const axle of v.axles) {
+        axle.group.rotation.z = -rolled / axle.radius
+      }
     }
   }
 }
