@@ -113,18 +113,67 @@ export function makeFigureEightGraph(lobeRadius = 0.16, lobeCenterX = 0.28): Tra
 /** Where trains may run: layouts as data, for the picker and the scene. */
 export type LayoutId = 'oval' | 'siding' | 'eight'
 
+export interface TreeAnchor {
+  x: number
+  z: number
+  scale?: number
+}
+
 export interface LayoutSpec {
   id: LayoutId
   name: string
   build: () => TrackGraph
   /** Whether the wayside station suits this layout. */
   station: boolean
+  /** Where trees stand, clear of the running lines. */
+  trees: TreeAnchor[]
 }
 
 export const LAYOUTS: LayoutSpec[] = [
-  { id: 'siding', name: 'Oval + siding', build: () => makeOvalSidingGraph(), station: true },
-  { id: 'oval', name: 'Oval', build: () => makeOvalGraph(), station: true },
-  { id: 'eight', name: 'Figure of eight', build: () => makeFigureEightGraph(), station: false },
+  {
+    id: 'siding',
+    name: 'Oval + siding',
+    build: () => makeOvalSidingGraph(),
+    station: true,
+    trees: [
+      { x: -0.12, z: 0.02, scale: 1.1 },
+      { x: 0.06, z: -0.06 },
+      { x: 0.16, z: 0.05, scale: 0.8 },
+      { x: -0.5, z: -0.28 },
+      { x: -0.45, z: -0.33, scale: 0.75 },
+      { x: 0.49, z: -0.3, scale: 1.15 },
+      { x: 0.53, z: 0.27, scale: 0.85 },
+    ],
+  },
+  {
+    id: 'oval',
+    name: 'Oval',
+    build: () => makeOvalGraph(),
+    station: true,
+    trees: [
+      { x: -0.12, z: 0.02, scale: 1.1 },
+      { x: 0.06, z: -0.06 },
+      { x: 0.16, z: 0.05, scale: 0.8 },
+      { x: -0.5, z: -0.28 },
+      { x: 0.49, z: -0.3, scale: 1.15 },
+      { x: 0.52, z: 0.28 },
+      { x: -0.52, z: 0.3, scale: 0.8 },
+    ],
+  },
+  {
+    id: 'eight',
+    name: 'Figure of eight',
+    build: () => makeFigureEightGraph(),
+    station: false,
+    trees: [
+      { x: -0.28, z: 0.01, scale: 1.1 },
+      { x: 0.28, z: -0.01 },
+      { x: 0.02, z: 0.3, scale: 0.85 },
+      { x: -0.04, z: -0.3 },
+      { x: -0.52, z: -0.3, scale: 0.8 },
+      { x: 0.52, z: 0.3, scale: 1.15 },
+    ],
+  },
 ]
 
 export function layoutSpec(id: LayoutId): LayoutSpec {
