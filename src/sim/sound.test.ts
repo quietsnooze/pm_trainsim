@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { SoundDirector, type SoundBackend } from './sound'
 
-function fakeBackend(): SoundBackend & { chuffs: number[]; whistles: number; clunks: number } {
+function fakeBackend(): SoundBackend & {
+  chuffs: number[]
+  whistles: number
+  clunks: number
+  horns: number
+  humLevel: number
+} {
   const log = {
     chuffs: [] as number[],
     whistles: 0,
     clunks: 0,
+    horns: 0,
+    humLevel: 0,
     chuff(speedNorm: number) {
       log.chuffs.push(speedNorm)
     },
@@ -14,6 +22,12 @@ function fakeBackend(): SoundBackend & { chuffs: number[]; whistles: number; clu
     },
     clunk() {
       log.clunks++
+    },
+    hum(level: number) {
+      log.humLevel = level
+    },
+    horn() {
+      log.horns++
     },
   }
   return log
@@ -84,6 +98,22 @@ describe('SoundDirector', () => {
     expect(backend.chuffs).toHaveLength(0) // audio stayed silent
     expect(beats.length).toBeGreaterThanOrEqual(45) // ~5/s for 10s
     expect(beats.at(-1)).toBeCloseTo(1, 5)
+  })
+
+  it('electric flavour hums with speed instead of chuffing, and hoots not whistles', () => {
+    const backend = fakeBackend()
+    const director = new SoundDirector(backend)
+    director.flavour = 'electric'
+    for (let i = 0; i < 60; i++) director.update(1 / 60, 0.2)
+    expect(backend.chuffs).toHaveLength(0)
+    expect(backend.humLevel).toBeCloseTo(0.8, 5)
+    director.whistle()
+    expect(backend.horns).toBe(1)
+    expect(backend.whistles).toBe(0)
+    // Mute forces the hum to zero.
+    director.muted = true
+    director.update(1 / 60, 0.2)
+    expect(backend.humLevel).toBe(0)
   })
 
   it('reports normalised speed to the backend (which makes fast running quieter)', () => {
