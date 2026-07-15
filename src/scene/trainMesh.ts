@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { Train } from '../sim/train'
 import type { TrainId } from '../sim/trains'
+import { glowMaterial } from './glow'
 import { RAIL_TOP_Y } from './trackMesh'
 
 // Palette (loosely LNER): garter blue body, red wheels, teak coaches.
@@ -163,6 +164,15 @@ function buildDriverAxle(radius: number, width: number, wheelColor: string): THR
   return g
 }
 
+/** A little head lamp that glows at night. */
+function buildLamp(): THREE.Mesh {
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(0.002, 10, 8),
+    glowMaterial('#d8d2c0', '#ffe9b0', 0.4),
+  )
+  return lamp
+}
+
 /** A plain small axle for tenders and coaches (solid dark wheels). */
 function buildPlainAxle(radius: number, width: number): THREE.Group {
   const g = new THREE.Group()
@@ -276,6 +286,10 @@ function buildMallardLoco(): VehicleBuild {
   const bufferBeam = box(0.003, 0.008, width - 0.006, WHEEL_RED, 0.6)
   bufferBeam.position.set(0.0505, 0.009, 0)
   g.add(bufferBeam)
+
+  const lamp = buildLamp()
+  lamp.position.set(0.0505, 0.0295, 0)
+  g.add(lamp)
 
   return { group: g, axles, rods }
 }
@@ -465,10 +479,19 @@ function buildAzumaPower(): VehicleBuild {
     door.position.set(x, 0.021, 0)
     g.add(door)
   }
-  // Window band.
-  const windows = box(0.08, 0.007, width + 0.0004, AZUMA_GLASS, 0.25)
+  // Window band (glows softly at night).
+  const windows = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.007, width + 0.0004),
+    glowMaterial(AZUMA_GLASS, '#bcd4ff', 0.25),
+  )
   windows.position.set(-0.008, 0.028, 0)
   g.add(windows)
+  for (const zz of [-0.006, 0.006]) {
+    const headlight = buildLamp()
+    headlight.scale.setScalar(0.8)
+    headlight.position.set(0.0505, 0.017, zz)
+    g.add(headlight)
+  }
 
   const number = textPlaque('801 101', 0.022, 0.006, width / 2 + 0.0006, {
     bg: AZUMA_WHITE,
@@ -503,7 +526,10 @@ function buildAzumaCoach(): VehicleBuild {
   const stripe = box(0.09, 0.005, width + 0.0008, AZUMA_RED, 0.4)
   stripe.position.y = 0.0125
   g.add(stripe)
-  const windows = box(0.078, 0.007, width + 0.0004, AZUMA_GLASS, 0.25)
+  const windows = new THREE.Mesh(
+    new THREE.BoxGeometry(0.078, 0.007, width + 0.0004),
+    glowMaterial(AZUMA_GLASS, '#bcd4ff', 0.25),
+  )
   windows.position.y = 0.028
   g.add(windows)
   for (const x of [-0.038, 0.038]) {
@@ -530,6 +556,12 @@ function buildCoach(): VehicleBuild {
   const body = box(0.09, 0.019, 0.025, TEAK)
   body.position.y = 0.0195
   g.add(body)
+  const windows = new THREE.Mesh(
+    new THREE.BoxGeometry(0.078, 0.006, 0.0254),
+    glowMaterial('#463c2e', '#ffb670', 0.4),
+  )
+  windows.position.y = 0.023
+  g.add(windows)
   const roof = box(0.086, 0.004, 0.022, ROOF_WHITE)
   roof.position.y = 0.031
   g.add(roof)

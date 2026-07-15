@@ -5,11 +5,17 @@ export const BOARD_DEPTH = 0.8
 /** Top surface of the baseboard sits at y = 0. */
 const BOARD_THICKNESS = 0.05
 
+export interface DioramaLights {
+  hemi: THREE.HemisphereLight
+  sun: THREE.DirectionalLight
+}
+
 /**
  * The tabletop the layout sits on: a wooden slab with a grass mat on top,
- * plus the lighting for the whole scene.
+ * plus the lighting for the whole scene (returned so the day/night rig
+ * can drive it).
  */
-export function buildDiorama(scene: THREE.Scene): void {
+export function buildDiorama(scene: THREE.Scene): DioramaLights {
   scene.background = new THREE.Color('#20242b')
 
   // Note: plain BoxGeometry, not examples' RoundedBoxGeometry — the latter
@@ -46,4 +52,6 @@ export function buildDiorama(scene: THREE.Scene): void {
   cam.far = 4
   sun.shadow.bias = -0.0005
   scene.add(sun)
+
+  return { hemi, sun }
 }
