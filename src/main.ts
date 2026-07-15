@@ -10,6 +10,7 @@ import { buildStation } from './scene/station'
 import { buildTrackMesh, RAIL_TOP_Y } from './scene/trackMesh'
 import { CHIMNEY_BEHIND_HEAD, CHIMNEY_HEIGHT, CONSIST_LENGTH, TrainMesh } from './scene/trainMesh'
 import { LAYOUTS, layoutSpec, type LayoutSpec } from './sim/layouts'
+import { loadSettings, saveSettings } from './sim/settings'
 import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
 import { TRAINS, trainSpec, type TrainSpec } from './sim/trains'
@@ -31,7 +32,11 @@ app.appendChild(renderer.domElement)
 const scene = new THREE.Scene()
 const lights = buildDiorama(scene)
 
-let currentLayout: LayoutSpec = layoutSpec('siding')
+// Pick up where the set was left: train, layout, sound and night survive
+// a reload, so the toy always opens looking familiar.
+const settings = loadSettings(localStorage)
+
+let currentLayout: LayoutSpec = layoutSpec(settings.layoutId)
 let track = currentLayout.build()
 let trackMeshGroup = buildTrackMesh(track)
 scene.add(trackMeshGroup)
@@ -44,7 +49,7 @@ scene.add(station)
 let scenery = buildScenery(currentLayout.trees)
 scene.add(scenery)
 
-let currentSpec: TrainSpec = trainSpec('mallard')
+let currentSpec: TrainSpec = trainSpec(settings.trainId)
 let train = new Train(track, CONSIST_LENGTH + 0.02, currentSpec.kinematics)
 let trainMesh = new TrainMesh(train, currentSpec.id)
 scene.add(trainMesh.group)
@@ -71,6 +76,7 @@ function setLayout(spec: LayoutSpec): void {
   train.direction = direction
   trainMesh = new TrainMesh(train, currentSpec.id)
   scene.add(trainMesh.group)
+  persist()
 }
 
 /** Swap the running train: same spot on the shelf, different engine. */
@@ -85,6 +91,17 @@ function setTrain(spec: TrainSpec): void {
   trainMesh = new TrainMesh(train, spec.id)
   scene.add(trainMesh.group)
   sound.flavour = spec.sound
+  persist()
+}
+
+/** Write the current choices to storage so a reload restores them. */
+function persist(): void {
+  saveSettings(localStorage, {
+    trainId: currentSpec.id,
+    layoutId: currentLayout.id,
+    muted: sound.muted,
+    night: dayNight.night,
+  })
 }
 
 const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 20)
@@ -103,6 +120,8 @@ orbit.maxPolarAngle = 1.35 // don't let the camera dip below the table
 // audio back after the app is backgrounded).
 const audioBackend = new WebAudioBackend()
 const sound = new SoundDirector(audioBackend)
+sound.flavour = currentSpec.sound
+sound.muted = settings.muted
 window.addEventListener('pointerdown', () => audioBackend.unlock())
 
 // A puff of steam with every exhaust beat (even when muted — smoke isn't sound).
@@ -121,11 +140,23 @@ createTrainPicker(document.body, TRAINS, () => currentSpec.id, setTrain)
 createLayoutPicker(document.body, LAYOUTS, () => currentLayout.id, setLayout)
 
 const dayNight = new DayNight(scene, lights.hemi, lights.sun)
-createNightButton(document.body, () => dayNight.toggle())
+dayNight.night = settings.night
+createNightButton(
+  document.body,
+  () => {
+    const night = dayNight.toggle()
+    persist()
+    return night
+  },
+  settings.night,
+)
 createMuteButton(
   document.body,
   () => sound.muted,
-  (muted) => (sound.muted = muted),
+  (muted) => {
+    sound.muted = muted
+    persist()
+  },
 )
 attachTapPoints(renderer.domElement, camera, () => pointsMesh, () => track, () => sound.pointClunk())
 

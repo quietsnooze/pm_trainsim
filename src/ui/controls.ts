@@ -230,16 +230,19 @@ export function createCameraButton(root: HTMLElement, onToggle: () => boolean): 
  * The night toggle (below the train picker): the icon shows what you get
  * when you tap it — 🌙 to bring the night in, ☀️ to bring the day back.
  */
-export function createNightButton(root: HTMLElement, onToggle: () => boolean): void {
+export function createNightButton(
+  root: HTMLElement,
+  onToggle: () => boolean,
+  initialNight = false,
+): void {
   const button = document.createElement('button')
   button.className = 'tc-night'
-  button.textContent = '🌙'
-  button.setAttribute('aria-label', 'Night time')
-  button.addEventListener('click', () => {
-    const night = onToggle()
+  const render = (night: boolean): void => {
     button.textContent = night ? '☀️' : '🌙'
     button.setAttribute('aria-label', night ? 'Day time' : 'Night time')
-  })
+  }
+  button.addEventListener('click', () => render(onToggle()))
+  render(initialNight)
   root.appendChild(button)
 }
 
