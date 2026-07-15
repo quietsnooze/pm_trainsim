@@ -5,6 +5,7 @@ import { buildDiorama } from './scene/diorama'
 import { FollowCam } from './scene/followCam'
 import { PointsMesh } from './scene/pointsMesh'
 import { SmokeSystem } from './scene/smoke'
+import { buildScenery } from './scene/scenery'
 import { buildStation } from './scene/station'
 import { buildTrackMesh, RAIL_TOP_Y } from './scene/trackMesh'
 import { CHIMNEY_BEHIND_HEAD, CHIMNEY_HEIGHT, CONSIST_LENGTH, TrainMesh } from './scene/trainMesh'
@@ -40,6 +41,8 @@ scene.add(pointsMesh.group)
 const station = buildStation()
 station.visible = currentLayout.station
 scene.add(station)
+let scenery = buildScenery(currentLayout.trees)
+scene.add(scenery)
 
 let currentSpec: TrainSpec = trainSpec('mallard')
 let train = new Train(track, CONSIST_LENGTH + 0.02, currentSpec.kinematics)
@@ -58,6 +61,9 @@ function setLayout(spec: LayoutSpec): void {
   pointsMesh = new PointsMesh(track)
   scene.add(pointsMesh.group)
   station.visible = spec.station
+  scene.remove(scenery)
+  scenery = buildScenery(spec.trees)
+  scene.add(scenery)
   const { throttle, direction } = train
   scene.remove(trainMesh.group)
   train = new Train(track, CONSIST_LENGTH + 0.02, currentSpec.kinematics)
