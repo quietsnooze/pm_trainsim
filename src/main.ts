@@ -51,6 +51,7 @@ function setTrain(spec: TrainSpec): void {
   train.direction = direction
   trainMesh = new TrainMesh(train, spec.id)
   scene.add(trainMesh.group)
+  sound.flavour = spec.sound
 }
 
 const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 20)

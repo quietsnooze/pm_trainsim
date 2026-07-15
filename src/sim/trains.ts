@@ -4,7 +4,7 @@
  * flavour. Adding a train = adding an entry + a builder.
  */
 
-export type TrainId = 'mallard' | 'scotsman'
+export type TrainId = 'mallard' | 'scotsman' | 'azuma'
 export type SoundFlavour = 'steam' | 'electric'
 
 export interface KinematicsProfile {
@@ -43,6 +43,15 @@ export const TRAINS: TrainSpec[] = [
     sound: 'steam',
     smoke: true,
     kinematics: { maxSpeed: 0.21, accel: 2.1 }, // stately by comparison
+  },
+  {
+    id: 'azuma',
+    name: 'Azuma',
+    number: '801 101',
+    cardColor: '#a8323a',
+    sound: 'electric',
+    smoke: false,
+    kinematics: { maxSpeed: 0.28, accel: 3.2 }, // nippy modern unit
   },
 ]
 

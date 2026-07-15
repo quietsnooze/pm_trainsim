@@ -80,6 +80,55 @@ export class WebAudioBackend implements SoundBackend {
     }
   }
 
+  private humOsc: OscillatorNode | null = null
+  private humGain: GainNode | null = null
+
+  hum(level: number): void {
+    if (!this.ctx || !this.master) return
+    if (!this.humGain) {
+      if (level <= 0) return // nothing to silence yet
+      this.humOsc = this.ctx.createOscillator()
+      this.humOsc.type = 'sawtooth'
+      this.humOsc.frequency.value = 45
+      const filter = this.ctx.createBiquadFilter()
+      filter.type = 'lowpass'
+      filter.frequency.value = 260
+      this.humGain = this.ctx.createGain()
+      this.humGain.gain.value = 0
+      this.humOsc.connect(filter)
+      filter.connect(this.humGain)
+      this.humGain.connect(this.master)
+      this.humOsc.start()
+    }
+    const t = this.ctx.currentTime
+    // Gentle traction-motor whine: pitch and volume ride with speed.
+    this.humGain.gain.setTargetAtTime(0.09 * level, t, 0.15)
+    this.humOsc!.frequency.setTargetAtTime(45 + level * 70, t, 0.15)
+  }
+
+  horn(): void {
+    if (!this.ctx || !this.master) return
+    const t = this.ctx.currentTime
+    // Friendly two-tone hoot.
+    for (const [freq, vol] of [
+      [523, 0.12],
+      [415, 0.1],
+    ] as const) {
+      const osc = this.ctx.createOscillator()
+      osc.type = 'triangle'
+      osc.frequency.value = freq
+      const gain = this.ctx.createGain()
+      gain.gain.setValueAtTime(0.0001, t)
+      gain.gain.exponentialRampToValueAtTime(vol, t + 0.04)
+      gain.gain.setValueAtTime(vol, t + 0.45)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.65)
+      osc.connect(gain)
+      gain.connect(this.master)
+      osc.start(t)
+      osc.stop(t + 0.7)
+    }
+  }
+
   clunk(): void {
     if (!this.ctx || !this.master) return
     const t = this.ctx.currentTime

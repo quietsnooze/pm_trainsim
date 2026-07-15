@@ -420,6 +420,109 @@ function buildTender(liveryColor: string): VehicleBuild {
   return { group: g, axles }
 }
 
+const AZUMA_WHITE = '#e3e2df'
+const AZUMA_RED = '#a8323a'
+const AZUMA_GLASS = '#2c3440'
+
+/** Azuma driving car: sleek white unit, red doors, dark sloped nose. */
+function buildAzumaPower(): VehicleBuild {
+  const g = new THREE.Group()
+  const width = 0.025
+  const axles: Axle[] = []
+
+  const body = box(0.096, 0.024, width, AZUMA_WHITE, 0.3)
+  body.position.set(-0.006, 0.022, 0)
+  g.add(body)
+  const roof = box(0.094, 0.003, width - 0.004, '#b8b6b2', 0.5)
+  roof.position.set(-0.006, 0.0355, 0)
+  g.add(roof)
+
+  // The sloped nose: white cone with an angled dark windscreen and red tip.
+  const nose = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.0092, 0.012, 6, 12),
+    new THREE.MeshStandardMaterial({ color: AZUMA_WHITE, roughness: 0.3 }),
+  )
+  nose.rotation.z = Math.PI / 2 - 0.52
+  nose.position.set(0.0435, 0.0185, 0)
+  nose.scale.z = 0.85
+  nose.castShadow = true
+  g.add(nose)
+  const windscreen = box(0.012, 0.0028, 0.016, AZUMA_GLASS, 0.2)
+  windscreen.rotation.z = -0.52
+  windscreen.position.set(0.0455, 0.027, 0)
+  g.add(windscreen)
+  const tip = box(0.004, 0.006, 0.012, AZUMA_RED, 0.4)
+  tip.rotation.z = -0.52
+  tip.position.set(0.0505, 0.0135, 0)
+  g.add(tip)
+
+  // Red stripe low along the body, red door bands.
+  const stripe = box(0.096, 0.005, width + 0.0008, AZUMA_RED, 0.4)
+  stripe.position.set(-0.006, 0.0125, 0)
+  g.add(stripe)
+  for (const x of [-0.04, 0.024]) {
+    const door = box(0.008, 0.022, width + 0.0006, AZUMA_RED, 0.4)
+    door.position.set(x, 0.021, 0)
+    g.add(door)
+  }
+  // Window band.
+  const windows = box(0.08, 0.007, width + 0.0004, AZUMA_GLASS, 0.25)
+  windows.position.set(-0.008, 0.028, 0)
+  g.add(windows)
+
+  const number = textPlaque('801 101', 0.022, 0.006, width / 2 + 0.0006, {
+    bg: AZUMA_WHITE,
+    fg: '#3a3d42',
+  })
+  number.position.set(-0.03, 0.0155, 0)
+  g.add(number)
+
+  const chassis = box(0.09, 0.007, width - 0.006, UNDERFRAME, 0.8)
+  chassis.position.set(-0.004, 0.0075, 0)
+  g.add(chassis)
+  for (const x of [-0.036, 0.028]) {
+    const axle = buildPlainAxle(0.006, width - 0.008)
+    axle.position.set(x, 0.006, 0)
+    g.add(axle)
+    axles.push({ group: axle, radius: 0.006 })
+  }
+  return { group: g, axles }
+}
+
+/** Azuma intermediate car. */
+function buildAzumaCoach(): VehicleBuild {
+  const g = new THREE.Group()
+  const width = 0.025
+  const axles: Axle[] = []
+  const body = box(0.09, 0.024, width, AZUMA_WHITE, 0.3)
+  body.position.y = 0.022
+  g.add(body)
+  const roof = box(0.088, 0.003, width - 0.004, '#b8b6b2', 0.5)
+  roof.position.y = 0.0355
+  g.add(roof)
+  const stripe = box(0.09, 0.005, width + 0.0008, AZUMA_RED, 0.4)
+  stripe.position.y = 0.0125
+  g.add(stripe)
+  const windows = box(0.078, 0.007, width + 0.0004, AZUMA_GLASS, 0.25)
+  windows.position.y = 0.028
+  g.add(windows)
+  for (const x of [-0.038, 0.038]) {
+    const door = box(0.007, 0.022, width + 0.0006, AZUMA_RED, 0.4)
+    door.position.set(x, 0.021, 0)
+    g.add(door)
+  }
+  const chassis = box(0.084, 0.007, width - 0.006, UNDERFRAME, 0.8)
+  chassis.position.y = 0.0075
+  g.add(chassis)
+  for (const x of [-0.032, 0.032]) {
+    const axle = buildPlainAxle(0.006, width - 0.008)
+    axle.position.set(x, 0.006, 0)
+    g.add(axle)
+    axles.push({ group: axle, radius: 0.006 })
+  }
+  return { group: g, axles }
+}
+
 /** Teak coach, now on visible wheels. */
 function buildCoach(): VehicleBuild {
   const g = new THREE.Group()
@@ -462,19 +565,29 @@ export class TrainMesh {
     private readonly train: Train,
     kind: TrainId = 'mallard',
   ) {
-    const locoOf: Record<TrainId, { build: () => VehicleBuild; livery: string }> = {
-      mallard: { build: buildMallardLoco, livery: GARTER_BLUE },
-      scotsman: { build: buildScotsmanLoco, livery: APPLE_GREEN },
-    }
-    const { build: buildEngine, livery } = locoOf[kind]
-    const consist: Array<{ build: () => VehicleBuild; length: number }> = [
-      { build: buildEngine, length: 0.112 },
+    const steamRake = (
+      engine: () => VehicleBuild,
+      livery: string,
+    ): Array<{ build: () => VehicleBuild; length: number }> => [
+      { build: engine, length: 0.112 },
       { build: () => buildTender(livery), length: 0.058 },
       { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
       { build: buildCoach, length: 0.098 },
     ]
+    const consistOf: Record<TrainId, Array<{ build: () => VehicleBuild; length: number }>> = {
+      mallard: steamRake(buildMallardLoco, GARTER_BLUE),
+      scotsman: steamRake(buildScotsmanLoco, APPLE_GREEN),
+      azuma: [
+        { build: buildAzumaPower, length: 0.114 },
+        { build: buildAzumaCoach, length: 0.112 },
+        { build: buildAzumaCoach, length: 0.112 },
+        { build: buildAzumaCoach, length: 0.112 },
+        { build: buildAzumaCoach, length: 0.112 },
+      ],
+    }
+    const consist = consistOf[kind]
     let offset = 0
     for (const { build, length } of consist) {
       const vehicle = build()
