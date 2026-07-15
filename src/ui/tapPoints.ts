@@ -12,8 +12,8 @@ const MAX_TAP_MOVE_PX = 12
 export function attachTapPoints(
   dom: HTMLElement,
   camera: THREE.Camera,
-  pointsMesh: PointsMesh,
-  graph: TrackGraph,
+  getPointsMesh: () => PointsMesh,
+  getGraph: () => TrackGraph,
   onToggle?: () => void,
 ): void {
   let downAt = 0
@@ -35,7 +35,8 @@ export function attachTapPoints(
       x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
       y: -(((e.clientY - rect.top) / rect.height) * 2 - 1),
     }
-    const id = pointsMesh.pick(ndc, camera)
+    const graph = getGraph()
+    const id = getPointsMesh().pick(ndc, camera)
     if (id) {
       graph.setPoint(id, graph.getPoint(id) === 0 ? 1 : 0)
       onToggle?.()

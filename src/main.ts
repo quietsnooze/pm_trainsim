@@ -8,13 +8,14 @@ import { SmokeSystem } from './scene/smoke'
 import { buildStation } from './scene/station'
 import { buildTrackMesh, RAIL_TOP_Y } from './scene/trackMesh'
 import { CHIMNEY_BEHIND_HEAD, CHIMNEY_HEIGHT, CONSIST_LENGTH, TrainMesh } from './scene/trainMesh'
-import { makeOvalSidingGraph } from './sim/layouts'
+import { LAYOUTS, layoutSpec, type LayoutSpec } from './sim/layouts'
 import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
 import { TRAINS, trainSpec, type TrainSpec } from './sim/trains'
 import { WebAudioBackend } from './ui/audio'
 import { createCameraButton, createControls, createMuteButton, createNightButton } from './ui/controls'
 import { attachTapPoints } from './ui/tapPoints'
+import { createLayoutPicker } from './ui/layoutPicker'
 import { createTrainPicker } from './ui/trainPicker'
 
 const app = document.getElementById('app')!
@@ -29,17 +30,42 @@ app.appendChild(renderer.domElement)
 const scene = new THREE.Scene()
 const lights = buildDiorama(scene)
 
-const track = makeOvalSidingGraph()
-scene.add(buildTrackMesh(track))
+let currentLayout: LayoutSpec = layoutSpec('siding')
+let track = currentLayout.build()
+let trackMeshGroup = buildTrackMesh(track)
+scene.add(trackMeshGroup)
 
-const pointsMesh = new PointsMesh(track)
+let pointsMesh = new PointsMesh(track)
 scene.add(pointsMesh.group)
-scene.add(buildStation())
+const station = buildStation()
+station.visible = currentLayout.station
+scene.add(station)
 
 let currentSpec: TrainSpec = trainSpec('mallard')
 let train = new Train(track, CONSIST_LENGTH + 0.02, currentSpec.kinematics)
 let trainMesh = new TrainMesh(train, currentSpec.id)
 scene.add(trainMesh.group)
+
+/** Swap the whole layout: new board plan, same engine re-railed at spawn. */
+function setLayout(spec: LayoutSpec): void {
+  if (spec.id === currentLayout.id) return
+  currentLayout = spec
+  scene.remove(trackMeshGroup)
+  scene.remove(pointsMesh.group)
+  track = spec.build()
+  trackMeshGroup = buildTrackMesh(track)
+  scene.add(trackMeshGroup)
+  pointsMesh = new PointsMesh(track)
+  scene.add(pointsMesh.group)
+  station.visible = spec.station
+  const { throttle, direction } = train
+  scene.remove(trainMesh.group)
+  train = new Train(track, CONSIST_LENGTH + 0.02, currentSpec.kinematics)
+  train.throttle = throttle
+  train.direction = direction
+  trainMesh = new TrainMesh(train, currentSpec.id)
+  scene.add(trainMesh.group)
+}
 
 /** Swap the running train: same spot on the shelf, different engine. */
 function setTrain(spec: TrainSpec): void {
@@ -86,6 +112,7 @@ const followCam = new FollowCam(camera, orbit, () => train, homePose)
 const controls = createControls(() => train, document.body, { onWhistle: () => sound.whistle() })
 createCameraButton(document.body, () => followCam.toggle())
 createTrainPicker(document.body, TRAINS, () => currentSpec.id, setTrain)
+createLayoutPicker(document.body, LAYOUTS, () => currentLayout.id, setLayout)
 
 const dayNight = new DayNight(scene, lights.hemi, lights.sun)
 createNightButton(document.body, () => dayNight.toggle())
@@ -94,7 +121,7 @@ createMuteButton(
   () => sound.muted,
   (muted) => (sound.muted = muted),
 )
-attachTapPoints(renderer.domElement, camera, pointsMesh, track, () => sound.pointClunk())
+attachTapPoints(renderer.domElement, camera, () => pointsMesh, () => track, () => sound.pointClunk())
 
 // The tabletop framing: pulled further back on narrow (portrait phone)
 // screens so the whole baseboard fits. Used at startup and whenever the
