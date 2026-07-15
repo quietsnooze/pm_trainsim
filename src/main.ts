@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { DayNight } from './scene/dayNight'
 import { buildDiorama } from './scene/diorama'
 import { FollowCam } from './scene/followCam'
 import { PointsMesh } from './scene/pointsMesh'
@@ -12,7 +13,7 @@ import { SoundDirector } from './sim/sound'
 import { Train } from './sim/train'
 import { TRAINS, trainSpec, type TrainSpec } from './sim/trains'
 import { WebAudioBackend } from './ui/audio'
-import { createCameraButton, createControls, createMuteButton } from './ui/controls'
+import { createCameraButton, createControls, createMuteButton, createNightButton } from './ui/controls'
 import { attachTapPoints } from './ui/tapPoints'
 import { createTrainPicker } from './ui/trainPicker'
 
@@ -26,7 +27,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping
 app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
-buildDiorama(scene)
+const lights = buildDiorama(scene)
 
 const track = makeOvalSidingGraph()
 scene.add(buildTrackMesh(track))
@@ -85,6 +86,9 @@ const followCam = new FollowCam(camera, orbit, () => train, homePose)
 const controls = createControls(() => train, document.body, { onWhistle: () => sound.whistle() })
 createCameraButton(document.body, () => followCam.toggle())
 createTrainPicker(document.body, TRAINS, () => currentSpec.id, setTrain)
+
+const dayNight = new DayNight(scene, lights.hemi, lights.sun)
+createNightButton(document.body, () => dayNight.toggle())
 createMuteButton(
   document.body,
   () => sound.muted,
@@ -156,6 +160,7 @@ renderer.setAnimationLoop(() => {
   pointsMesh.update(dt)
   sound.update(dt, train.speed)
   smoke.update(dt)
+  dayNight.update(dt)
   controls.update()
   if (followCam.active) followCam.update(dt)
   else orbit.update()

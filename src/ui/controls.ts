@@ -111,6 +111,19 @@ const CSS = `
   border-color: #b8873b;
   background: rgba(58, 46, 20, 0.85);
 }
+.tc-night {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 154px);
+  left: calc(env(safe-area-inset-left, 0px) + 14px);
+  font: 400 28px/1 inherit;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  border: 1px solid #4a5162;
+  background: rgba(24, 27, 33, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
 .tc-speed {
   font: 600 12px/1.2 inherit;
   min-width: 30px;
@@ -209,6 +222,23 @@ export function createCameraButton(root: HTMLElement, onToggle: () => boolean): 
     const active = onToggle()
     button.dataset.active = active ? '1' : ''
     button.setAttribute('aria-label', active ? 'Following the engine — tap for tabletop view' : 'Follow the engine')
+  })
+  root.appendChild(button)
+}
+
+/**
+ * The night toggle (below the train picker): the icon shows what you get
+ * when you tap it — 🌙 to bring the night in, ☀️ to bring the day back.
+ */
+export function createNightButton(root: HTMLElement, onToggle: () => boolean): void {
+  const button = document.createElement('button')
+  button.className = 'tc-night'
+  button.textContent = '🌙'
+  button.setAttribute('aria-label', 'Night time')
+  button.addEventListener('click', () => {
+    const night = onToggle()
+    button.textContent = night ? '☀️' : '🌙'
+    button.setAttribute('aria-label', night ? 'Day time' : 'Night time')
   })
   root.appendChild(button)
 }

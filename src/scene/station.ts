@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { glowMaterial } from './glow'
 
 // Palette: warm stone, cream timber, slate-ish roof.
 const PLATFORM_STONE = '#b5ab98'
@@ -59,7 +60,10 @@ export function buildStation(): THREE.Group {
   door.position.set(0, 0.009, 0.0175)
   building.add(door)
   for (const x of [-0.028, 0.028]) {
-    const window = box(0.014, 0.012, 0.002, '#8fa8b8', 0.3)
+    const window = new THREE.Mesh(
+      new THREE.BoxGeometry(0.014, 0.012, 0.002),
+      glowMaterial('#8fa8b8', '#ffd88a', 0.3),
+    )
     window.position.set(x, 0.014, 0.0175)
     building.add(window)
   }
