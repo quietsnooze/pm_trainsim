@@ -77,3 +77,79 @@ export function makeOvalSidingGraph(straightLength = 0.5, radius = 0.22): TrackG
   g.spawn = { seg: 'far2', s: 0.25, dir: 1 }
   return g
 }
+
+/**
+ * A figure-of-eight: two lobes joined by diagonals that cross at the
+ * middle on a flat diamond crossing (the classic starter-set piece).
+ * One lobe runs clockwise, the other anticlockwise.
+ */
+export function makeFigureEightGraph(lobeRadius = 0.16, lobeCenterX = 0.28): TrackGraph {
+  const g = new TrackGraph()
+  const r = lobeRadius
+  const cx = lobeCenterX
+  // Inner tangents to both lobes pass through the origin at ±theta.
+  const theta = Math.asin((2 * r) / (2 * cx))
+  const half = Math.sqrt(cx * cx - r * r) // half-length of each diagonal
+  const px = half * Math.cos(theta)
+  const pz = half * Math.sin(theta)
+
+  const lobeSweep = Math.PI + 2 * theta // the long way round each lobe
+  g.addSegment('diagA', new StraightSegment({ x: -px, z: -pz }, { x: px, z: pz }))
+  // Right lobe, clockwise the long way round.
+  g.addSegment('rightLobe', new ArcSegment({ x: cx, z: 0 }, r, Math.PI / 2 + theta, -lobeSweep))
+  g.addSegment('diagB', new StraightSegment({ x: px, z: -pz }, { x: -px, z: pz }))
+  // Left lobe, anticlockwise the long way round.
+  g.addSegment('leftLobe', new ArcSegment({ x: -cx, z: 0 }, r, Math.PI / 2 - theta, lobeSweep))
+
+  g.connect({ seg: 'diagA', end: 'b' }, { seg: 'rightLobe', end: 'a' })
+  g.connect({ seg: 'rightLobe', end: 'b' }, { seg: 'diagB', end: 'a' })
+  g.connect({ seg: 'diagB', end: 'b' }, { seg: 'leftLobe', end: 'a' })
+  g.connect({ seg: 'leftLobe', end: 'b' }, { seg: 'diagA', end: 'a' })
+
+  g.spawn = { seg: 'diagA', s: 0.1, dir: 1 }
+  return g
+}
+
+/** Where trains may run: layouts as data, for the picker and the scene. */
+export type LayoutId = 'oval' | 'siding' | 'eight'
+
+export interface LayoutSpec {
+  id: LayoutId
+  name: string
+  build: () => TrackGraph
+  /** Whether the wayside station suits this layout. */
+  station: boolean
+}
+
+export const LAYOUTS: LayoutSpec[] = [
+  { id: 'siding', name: 'Oval + siding', build: () => makeOvalSidingGraph(), station: true },
+  { id: 'oval', name: 'Oval', build: () => makeOvalGraph(), station: true },
+  { id: 'eight', name: 'Figure of eight', build: () => makeFigureEightGraph(), station: false },
+]
+
+export function layoutSpec(id: LayoutId): LayoutSpec {
+  const spec = LAYOUTS.find((l) => l.id === id)
+  if (!spec) throw new Error(`unknown layout: ${id}`)
+  return spec
+}
+
+/**
+ * A layout is sound if driving forward from spawn leaves home and comes
+ * back round to it without falling off the end of the track.
+ */
+export function validateLoop(graph: TrackGraph, maxLength = 10): { ok: boolean; reason?: string } {
+  const cursor = graph.createCursor(graph.spawn)
+  const start = cursor.sample().position
+  const step = 0.01
+  let travelled = 0
+  let left = false
+  while (travelled < maxLength) {
+    if (cursor.advance(step) < step - 1e-9) return { ok: false, reason: 'hit an end of line' }
+    travelled += step
+    const p = cursor.sample().position
+    const home = Math.hypot(p.x - start.x, p.z - start.z)
+    if (!left && home > 0.1) left = true
+    if (left && home < 0.006) return { ok: true }
+  }
+  return { ok: false, reason: 'never returned to start' }
+}

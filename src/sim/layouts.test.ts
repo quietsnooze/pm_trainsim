@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { makeOvalSidingGraph, SIDING_Z } from './layouts'
+import { TrackGraph } from './graph'
+import { LAYOUTS, makeFigureEightGraph, makeOvalSidingGraph, SIDING_Z, validateLoop } from './layouts'
+import { StraightSegment } from './track'
 import { Train } from './train'
 
 function driveUntil(train: Train, done: () => boolean, cap = 8000): void {
@@ -56,5 +58,44 @@ describe('oval + siding layout', () => {
     expect(points[0].id).toBe('p1')
     // The junction sits on the main straight nearest the camera (z = +0.22).
     expect(points[0].z).toBeCloseTo(0.22, 3)
+  })
+})
+
+describe('layout catalogue', () => {
+  it('every shipped layout is a sound loop', () => {
+    for (const spec of LAYOUTS) {
+      const result = validateLoop(spec.build())
+      expect(result.ok, `${spec.id}: ${result.reason ?? ''}`).toBe(true)
+    }
+  })
+
+  it('the validator rejects a broken layout (dead end on the main line)', () => {
+    const g = new TrackGraph()
+    g.addSegment('main', new StraightSegment({ x: 0, z: 0 }, { x: 1, z: 0 }))
+    g.spawn = { seg: 'main', s: 0, dir: 1 }
+    const result = validateLoop(g)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toMatch(/end of line/)
+  })
+
+  it('figure-of-eight: both diagonals pass through the crossing at the middle', () => {
+    const g = makeFigureEightGraph()
+    const a = g.createCursor({ seg: 'diagA', s: 0, dir: 1 })
+    a.advance(g.segment('diagA').length / 2)
+    const b = g.createCursor({ seg: 'diagB', s: 0, dir: 1 })
+    b.advance(g.segment('diagB').length / 2)
+    expect(Math.hypot(a.sample().position.x, a.sample().position.z)).toBeLessThan(1e-9)
+    expect(Math.hypot(b.sample().position.x, b.sample().position.z)).toBeLessThan(1e-9)
+  })
+
+  it('figure-of-eight fits the baseboard', () => {
+    const g = makeFigureEightGraph()
+    const cursor = g.createCursor(g.spawn)
+    for (let i = 0; i < 500; i++) {
+      cursor.advance(0.005)
+      const { position } = cursor.sample()
+      expect(Math.abs(position.x)).toBeLessThan(0.56)
+      expect(Math.abs(position.z)).toBeLessThan(0.36)
+    }
   })
 })
